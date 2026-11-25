@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Application manifest of moku.exe for a build that is to get a package identity (release.ps1
+  -SparsePackage). The msix element ties the exe to the identity package: packageName, publisher
+  and applicationId must equal the Identity Name, Identity Publisher and Application Id of
+  AppxManifest.xml. Without a registered identity package the exe simply runs unpackaged.
+-->
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="@PACKAGE_NAME@.App" />
+  <msix xmlns="urn:schemas-microsoft-com:msix.v1" publisher="@PUBLISHER@" packageName="@PACKAGE_NAME@" applicationId="@APPLICATION_ID@" />
+</assembly>

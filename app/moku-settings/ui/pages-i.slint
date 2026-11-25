@@ -1,0 +1,32 @@
+import { Theme } from "theme.slint";
+import { Card, ToggleSetting, Setting, SectionLabel } from "widgets.slint";
+
+// Track I: update settings, placed on the Tentang page. Rust side: src/update_page.rs.
+export global UpdateCfg {
+    // update.check in config.toml.
+    in-out property <bool> check: true;
+    // False while moku_core::release::REPO is still the placeholder or UPDATE_PUBLIC_KEY is not set
+    // (the updater is off in this build): the switch is greyed out and cannot be turned on.
+    in property <bool> available: false;
+    in property <string> repo;
+    callback set-check(bool);
+}
+
+export component UpdateSection inherits VerticalLayout {
+    spacing: 8px;
+    SectionLabel { text: "PEMBARUAN"; }
+    Card {
+        // Greyed out while the updater is not in this build.
+        opacity: UpdateCfg.available ? 1.0 : 0.5;
+        ToggleSetting {
+            first: true;
+            title: "Periksa pembaruan otomatis";
+            subtitle: UpdateCfg.available
+                ? "Sekali sehari, Moku menanyakan versi terbaru ke GitHub (" + UpdateCfg.repo + "). Tidak ada data lain yang dikirim."
+                : "Belum aktif di build ini";
+            enabled: UpdateCfg.available;
+            checked: UpdateCfg.available && UpdateCfg.check;
+            toggled(v) => { UpdateCfg.check = v; UpdateCfg.set-check(v); }
+        }
+    }
+}

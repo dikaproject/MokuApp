@@ -1,0 +1,34 @@
+// Colours and type, from pratinjau/00-Ringkasan.png (same palette as the island's ui::color).
+export global Theme {
+    // Set from Rust at start: "Segoe UI Variable Text" / "Segoe UI" and "Segoe Fluent Icons" /
+    // "Segoe MDL2 Assets", whichever is installed.
+    in property <string> font: "Segoe UI";
+    in property <string> icons: "Segoe MDL2 Assets";
+    // Accent from the config (appearance.accent); drives sliders, focus rings, previews.
+    in property <color> accent: #0A84FF;
+    // Debug flag --scroll: pages start scrolled by this much.
+    in property <length> start-scroll: 0px;
+
+    out property <color> text: #ffffff;
+    out property <color> text2: #ffffffb8;   // 72 %
+    out property <color> text3: #ffffff75;   // 46 %
+    out property <color> fill: #ffffff14;    // 8 %
+    out property <color> fill2: #ffffff24;   // 14 %
+    out property <color> fill3: #ffffff2e;   // 18 %
+    out property <color> card: #ffffff12;
+    out property <color> line: #ffffff14;
+    out property <color> ink: #14141c;       // dark text on white buttons
+
+    out property <color> blue: #0A84FF;
+    out property <color> green: #30D158;
+    out property <color> orange: #FF9F0A;
+    out property <color> red: #FF453A;
+    out property <color> yellow: #FFD60A;
+    out property <color> purple: #BF5AF2;
+    out property <color> teal: #64D2FF;
+    out property <color> mint: #63E6BE;
+    out property <color> pink: #FF375F;
+
+    // Window background: navy to plum, like the mockup's glass over the wallpaper.
+    out property <brush> window-bg: @linear-gradient(135deg, #101a36 0%, #1a1d3f 45%, #2d1d44 80%, #3d2142 100%);
+}

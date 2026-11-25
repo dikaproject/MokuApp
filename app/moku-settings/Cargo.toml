@@ -1,0 +1,29 @@
+[package]
+name = "moku-settings"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Moku settings app (moku-settings.exe), Slint software renderer"
+
+[dependencies]
+moku-core.workspace = true
+# Software renderer + winit only (no femtovg / skia / default backend): idle budget is 30 MB.
+# `unstable-winit-030` is only used to force the dark title bar of the native frame.
+slint = { version = "1.19", default-features = false, features = ["std", "backend-winit", "compat-1-2", "renderer-software", "software-renderer-systemfonts", "unstable-winit-030"] }
+
+[dependencies.windows]
+workspace = true
+features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",      # EnumDisplayMonitors (the monitor picker)
+    "Win32_Security",          # RegCreateKeyExW signature
+    "Win32_System_Registry",   # autostart (HKCU\...\Run)
+    "Win32_System_Threading",  # single-instance mutex
+    "Win32_UI_Shell",          # ShellExecuteW (open folder / document), the Downloads folder
+    "Win32_UI_Controls_Dialogs", # GetOpenFileNameW (adzan sound file, track N)
+    "Win32_System_Com",        # CoTaskMemFree (known-folder path)
+    "Win32_System_Time",       # time zone (dates in the memory list)
+    "Win32_Networking_WinHttp",# net.rs of the island: "Tes koneksi" of the AI page
+    "Win32_UI_WindowsAndMessaging",
+]

@@ -1,0 +1,486 @@
+// v0.3 track M: "Tanya AI" and "Memori & Privasi". They are not part of `Form`: this file has its
+// own bridge (`AiCfg`) and src/ai_page.rs reads / writes `[ai]` of config.toml (read-modify-write
+// like every other save), the API key in Windows Credential Manager, and the encrypted memory.
+// The API key never reaches this file except as typed text going OUT of the field.
+import { Theme } from "theme.slint";
+import { Cfg } from "cfg.slint";
+import { Card, Setting, ToggleSetting, Field, Btn, Segmented, SectionLabel, Glyph, Page, Kbd } from "widgets.slint";
+
+// One remembered fact, as shown (Rust keeps the ids).
+export struct AiFact { text: string, date: string }
+
+export global AiCfg {
+    // ---- Tanya AI ----
+    in-out property <bool> enabled;
+    in-out property <string> hotkey: "Ctrl+Alt+A";
+    in-out property <bool> copy-fallback: true;
+    // The provider presets, in two rows, and which one is selected (the last entry is "Kustom").
+    in property <[string]> presets-a;
+    in property <[string]> presets-b;
+    in-out property <int> preset: 0;
+    in-out property <string> base-url;
+    in-out property <string> model;
+    // Why the address / hotkey / model is not used ("" = fine).
+    in property <string> url-problem;
+    in property <string> hotkey-problem;
+    // "api.openai.com" (what the card shows as "Dikirim ke").
+    in property <string> host;
+    in property <bool> local;
+    // What the key field is about: stored / not stored / not needed.
+    in property <string> key-status;
+    in property <bool> has-key;
+    in property <string> key-problem;
+    in property <string> test-result;
+    in property <bool> test-ok;
+    in property <bool> testing;
+    // The privacy note (Indonesian and English), set by Rust from moku_core::ai.
+    in property <string> note-id;
+    in property <string> note-en;
+
+    // ---- Memori & Privasi ----
+    in-out property <bool> ctx-todos;
+    in-out property <bool> ctx-calendar;
+    in-out property <bool> ctx-timer;
+    in-out property <bool> ctx-weather;
+    in-out property <bool> send-all-local;
+    in-out property <bool> redact: true;
+    in-out property <bool> memory-paused;
+    in-out property <bool> history;
+    // 0 = 7 days, 1 = 30 days.
+    in-out property <int> retention: 0;
+    in property <[AiFact]> facts;
+    in property <string> memory-status;
+    in property <bool> memory-broken;
+    in property <string> memory-problem;
+    in property <int> history-count;
+    // The result of the last memory action ("Diekspor ke …", "Sudah ada di memori").
+    in property <string> memory-notice;
+    // Row being edited (-1 = none), and the inline two-step "Hapus semua".
+    in-out property <int> editing: -1;
+    in-out property <bool> confirm-wipe: false;
+
+    // Rust re-reads everything (called when a page is built, so "Reset ke awal" shows).
+    callback reload();
+    // Any editable of the provider / feature / context changed: Rust validates and saves (debounced).
+    callback changed();
+    callback pick-preset(int);
+    // true = saved (the field is cleared).
+    callback save-key(string) -> bool;
+    callback delete-key();
+    callback test();
+    callback add-fact(string) -> bool;
+    callback edit-fact(int, string) -> bool;
+    callback delete-fact(int);
+    callback clear-history();
+    callback export-memory();
+    callback wipe-memory();
+}
+
+// A pill option of the provider picker.
+component PresetChip inherits Rectangle {
+    in property <string> text;
+    in property <bool> on;
+    callback clicked();
+    height: 30px;
+    border-radius: 15px;
+    background: root.on ? Theme.accent : ta.has-hover ? #ffffff24 : #ffffff14;
+    animate background { duration: 100ms; }
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        Text {
+            text: root.text;
+            font-size: 12.5px;
+            font-weight: root.on ? 600 : 400;
+            color: root.on ? #ffffff : Theme.text2;
+            vertical-alignment: center;
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+// A text box for the API key: the characters are dots, and the text is cleared once it is saved.
+component SecretField inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder;
+    in property <bool> invalid: false;
+    height: 30px;
+    width: 200px;
+    border-radius: 10px;
+    background: #00000033;
+    border-width: 1px;
+    border-color: root.invalid ? Theme.red : ti.has-focus ? Theme.accent : #ffffff1f;
+    ti := TextInput {
+        x: 10px;
+        width: root.width - 20px;
+        height: root.height;
+        vertical-alignment: center;
+        font-size: 12.5px;
+        color: Theme.text;
+        selection-background-color: #0a84ff99;
+        wrap: no-wrap;
+        input-type: password;
+        text <=> root.text;
+    }
+    if root.text == "" && !ti.has-focus: Text {
+        x: 10px;
+        text: root.placeholder;
+        font-size: 12.5px;
+        color: Theme.text3;
+        vertical-alignment: center;
+        height: root.height;
+    }
+}
+
+// The privacy note in both languages. Shown on the AI page and in the first-run setup.
+export component PrivacyNote inherits Rectangle {
+    background: #30d15814;
+    border-radius: 14px;
+    border-width: 1px;
+    border-color: #30d15838;
+    VerticalLayout {
+        padding: 14px;
+        spacing: 8px;
+        HorizontalLayout {
+            spacing: 8px;
+            Glyph { g: "\u{E72E}"; font-size: 14px; width: 18px; color: Theme.green; }
+            Text { text: "Privasi"; font-size: 13px; font-weight: 600; color: Theme.text; vertical-alignment: center; }
+        }
+        // Only the language of the window (Settings → Umum → Bahasa; Indonesian by default), not both stacked.
+        Text { text: Cfg.f.general-language == 1 ? AiCfg.note-en : AiCfg.note-id; font-size: 12px; color: Theme.text2; wrap: word-wrap; }
+    }
+}
+
+component FactRow inherits Rectangle {
+    in property <string> text;
+    in property <string> date;
+    in property <int> index;
+    min-height: 46px;
+    Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.line;
+    }
+    if AiCfg.editing != root.index: HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 14px;
+        padding-top: 7px;
+        padding-bottom: 7px;
+        spacing: 10px;
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            spacing: 1px;
+            Text { text: root.text; font-size: 12.5px; color: Theme.text; wrap: word-wrap; }
+            Text { text: root.date; font-size: 10.5px; color: Theme.text3; }
+        }
+        VerticalLayout {
+            alignment: center;
+            HorizontalLayout {
+                spacing: 6px;
+                Btn { text: "Ubah"; clicked => { AiCfg.editing = root.index; } }
+                Btn { text: "Hapus"; kind: "danger"; clicked => { AiCfg.delete-fact(root.index); } }
+            }
+        }
+    }
+    if AiCfg.editing == root.index: HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 14px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        spacing: 10px;
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            editor := Field {
+                width: 100%;
+                text: root.text;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            HorizontalLayout {
+                spacing: 6px;
+                Btn {
+                    text: "Simpan";
+                    kind: "accent";
+                    clicked => {
+                        if (AiCfg.edit-fact(root.index, editor.text)) { AiCfg.editing = -1; }
+                    }
+                }
+                Btn { text: "Batal"; clicked => { AiCfg.editing = -1; } }
+            }
+        }
+    }
+}
+// ------------------------------------------------------------------------------ Tanya AI
+
+export component AiPage inherits Page {
+    title: "Tanya AI";
+    subtitle: "Pilih teks di aplikasi apa pun, tekan pintasan, lalu terjemahkan, ringkas, jelaskan, atau perbaiki lewat penyedia AI pilihanmu. Mati sampai kamu menyalakannya.";
+    init => { AiCfg.reload(); }
+
+    PrivacyNote { }
+
+    SectionLabel { text: "TANYA AI"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Nyalakan Tanya AI";
+            subtitle: "Pintasan global dan perintah ? di peluncur. Tidak ada yang dikirim sebelum kamu memintanya.";
+            checked: AiCfg.enabled;
+            toggled(v) => { AiCfg.enabled = v; AiCfg.changed(); }
+        }
+        Setting {
+            title: "Pintasan";
+            subtitle: AiCfg.hotkey-problem != "" ? AiCfg.hotkey-problem : "Bawaan Ctrl+Alt+A. Kamu juga bisa mengetik ? di peluncur.";
+            Field {
+                width: 200px;
+                text: AiCfg.hotkey;
+                invalid: AiCfg.hotkey-problem != "";
+                edited(t) => { AiCfg.hotkey = t; AiCfg.changed(); }
+            }
+        }
+        ToggleSetting {
+            title: "Salin otomatis kalau teks tidak terbaca";
+            subtitle: "Memakai Ctrl+C hanya saat kamu menekan pintasan; isi clipboard disimpan dan dikembalikan. Tidak dipakai di terminal.";
+            checked: AiCfg.copy-fallback;
+            toggled(v) => { AiCfg.copy-fallback = v; AiCfg.changed(); }
+        }
+    }
+
+    SectionLabel { text: "PENYEDIA"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Penyedia";
+            subtitle: "Semua yang kompatibel dengan OpenAI. Ollama dan LM Studio berjalan di PC ini.";
+            VerticalLayout {
+                spacing: 6px;
+                alignment: center;
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: end;
+                    for n[i] in AiCfg.presets-a: PresetChip {
+                        text: n;
+                        on: AiCfg.preset == i;
+                        clicked => { AiCfg.pick-preset(i); }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: end;
+                    for n[i] in AiCfg.presets-b: PresetChip {
+                        text: n;
+                        on: AiCfg.preset == 4 + i;
+                        clicked => { AiCfg.pick-preset(4 + i); }
+                    }
+                }
+            }
+        }
+        Setting {
+            title: "Alamat dasar";
+            subtitle: AiCfg.url-problem != "" ? AiCfg.url-problem : "Tujuan satu-satunya: " + AiCfg.host + ". /chat/completions ditambahkan otomatis.";
+            Field {
+                width: 300px;
+                mono: true;
+                placeholder: "https://api.example.com/v1";
+                text: AiCfg.base-url;
+                invalid: AiCfg.url-problem != "";
+                edited(t) => { AiCfg.base-url = t; AiCfg.changed(); }
+            }
+        }
+        Setting {
+            title: "Model";
+            subtitle: "Nama model di penyedia itu, mis. gpt-4o-mini atau llama3.2";
+            Field {
+                width: 300px;
+                mono: true;
+                text: AiCfg.model;
+                edited(t) => { AiCfg.model = t; AiCfg.changed(); }
+            }
+        }
+        Setting {
+            title: "Kunci API";
+            subtitle: AiCfg.key-problem != "" ? AiCfg.key-problem : AiCfg.key-status;
+            key := SecretField {
+                placeholder: AiCfg.has-key ? "•••••••• (tersimpan)" : "Tempel kunci di sini";
+                invalid: AiCfg.key-problem != "";
+            }
+            Btn {
+                text: "Simpan";
+                kind: "accent";
+                clicked => {
+                    if (AiCfg.save-key(key.text)) { key.text = ""; }
+                }
+            }
+            if AiCfg.has-key: Btn { text: "Hapus"; kind: "danger"; clicked => { AiCfg.delete-key(); } }
+        }
+        Setting {
+            title: "Tes koneksi";
+            subtitle: AiCfg.test-result != "" ? AiCfg.test-result : "Meminta daftar model dari penyedia (tidak memakai kuota).";
+            Btn {
+                text: AiCfg.testing ? "Menguji…" : "Tes koneksi";
+                enabled: !AiCfg.testing;
+                clicked => { AiCfg.test(); }
+            }
+        }
+    }
+    Text {
+        text: "Kunci disimpan di Windows Credential Manager, satu per penyedia, dan tidak pernah di config.toml atau log. Moku hanya menghubungi alamat di atas.";
+        font-size: 11.5px;
+        color: Theme.text3;
+        wrap: word-wrap;
+    }
+}
+
+// ------------------------------------------------------------------------ Memori & Privasi
+
+export component MemoriPage inherits Page {
+    title: "Memori & Privasi";
+    subtitle: "Apa yang boleh ikut dikirim ke AI, dan apa yang Moku ingat. Semuanya disimpan di PC ini, dienkripsi untuk akun Windows-mu.";
+    init => { AiCfg.reload(); }
+
+    SectionLabel { text: "KONTEKS YANG BOLEH DIKIRIM"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Selalu ikut";
+            subtitle: "Teks terpilih, tanggal dan jam, zona waktu, bahasa, dan nama kota. Setiap kartu menunjukkan apa yang dikirim; tiap bagian bisa dicabut per permintaan.";
+        }
+        ToggleSetting {
+            title: "Judul to-do";
+            subtitle: "To-do yang belum selesai";
+            checked: AiCfg.ctx-todos;
+            toggled(v) => { AiCfg.ctx-todos = v; AiCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Agenda hari ini";
+            subtitle: "Judul dan jam acara dari kalender";
+            checked: AiCfg.ctx-calendar;
+            toggled(v) => { AiCfg.ctx-calendar = v; AiCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Timer dan fokus";
+            subtitle: "Apakah timer berjalan dan sisa waktunya";
+            checked: AiCfg.ctx-timer;
+            toggled(v) => { AiCfg.ctx-timer = v; AiCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Ringkasan cuaca";
+            subtitle: "Suhu dan kondisi, tanpa koordinat";
+            checked: AiCfg.ctx-weather;
+            toggled(v) => { AiCfg.ctx-weather = v; AiCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Kirim semua konteks";
+            subtitle: AiCfg.local ? "Penyedia ada di PC ini, jadi semua sumber di atas ikut tanpa perlu dipilih satu per satu." : "Hanya untuk penyedia di PC ini (Ollama, LM Studio). Penyedia saat ini: " + AiCfg.host + ".";
+            enabled: AiCfg.local;
+            checked: AiCfg.local && AiCfg.send-all-local;
+            toggled(v) => { AiCfg.send-all-local = v; AiCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Sembunyikan data sensitif";
+            subtitle: "OTP, nomor 16 digit (kartu, NIK), dan token diganti penanda sebelum dikirim.";
+            checked: AiCfg.redact;
+            toggled(v) => { AiCfg.redact = v; AiCfg.changed(); }
+        }
+    }
+    Text {
+        text: "Tidak pernah dikirim, apa pun pengaturannya: riwayat clipboard, isi notifikasi, hasil OCR atau isi layar, kode OTP, sesi agen coding, dan lokasi presisi.";
+        font-size: 11.5px;
+        color: Theme.text3;
+        wrap: word-wrap;
+    }
+
+    SectionLabel { text: "MEMORI"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Jeda memori";
+            subtitle: "Selama dijeda, catatan tidak ikut dikirim, tidak ada yang disimpan, dan Ingat ini dimatikan.";
+            checked: AiCfg.memory-paused;
+            toggled(v) => { AiCfg.memory-paused = v; AiCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Simpan riwayat tanya jawab";
+            subtitle: "Mati secara bawaan. Disimpan terenkripsi di PC ini, tidak ikut dikirim ke AI, dan dihapus otomatis setelah masa simpan.";
+            checked: AiCfg.history;
+            toggled(v) => { AiCfg.history = v; AiCfg.changed(); }
+        }
+        Setting {
+            title: "Masa simpan riwayat";
+            Segmented {
+                options: ["7 hari", "30 hari"];
+                index: AiCfg.retention;
+                selected(i) => { AiCfg.retention = i; AiCfg.changed(); }
+            }
+        }
+        Setting {
+            title: "Status";
+            subtitle: AiCfg.memory-broken ? AiCfg.memory-problem : AiCfg.memory-status;
+            if AiCfg.history-count > 0: Btn { text: "Hapus riwayat"; kind: "danger"; clicked => { AiCfg.clear-history(); } }
+        }
+    }
+
+    SectionLabel { text: "YANG KUINGAT"; }
+    Card {
+        if AiCfg.facts.length == 0 && !AiCfg.memory-broken: Setting {
+            first: true;
+            title: "Belum ada catatan";
+            subtitle: "Tekan Ingat ini di kartu Tanya AI setelah sebuah jawaban, atau tambahkan sendiri di bawah.";
+        }
+        if AiCfg.memory-broken: Setting {
+            first: true;
+            title: "Memori tidak bisa dibuka";
+            subtitle: "Filenya rusak, diubah, atau dibuat oleh akun Windows lain. Isinya tidak dihapus. Pilih Hapus semua di bawah untuk mulai dari awal.";
+        }
+        for f[i] in AiCfg.facts: FactRow {
+            text: f.text;
+            date: f.date;
+            index: i;
+        }
+        Setting {
+            title: "Tambah catatan";
+            subtitle: AiCfg.memory-paused ? "Memori sedang dijeda" : "Mis. \"Panggil saya Rani\" atau \"Saya tinggal di Surabaya\"";
+            adder := Field {
+                width: 280px;
+                placeholder: "Hal yang perlu diingat";
+                read-only: AiCfg.memory-paused || AiCfg.memory-broken;
+            }
+            Btn {
+                text: "Tambah";
+                kind: "accent";
+                width: 92px;
+                enabled: !AiCfg.memory-paused && !AiCfg.memory-broken;
+                clicked => {
+                    if (AiCfg.add-fact(adder.text)) { adder.text = ""; }
+                }
+            }
+        }
+    }
+
+    SectionLabel { text: "DATA"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Ekspor memori";
+            subtitle: "Menyimpan catatan dan riwayat sebagai file JSON di folder Unduhan. File itu tidak dienkripsi.";
+            Btn { text: "Ekspor JSON"; clicked => { AiCfg.export-memory(); } }
+        }
+        if AiCfg.memory-notice != "": Setting {
+            title: "Hasil";
+            subtitle: AiCfg.memory-notice;
+        }
+        Setting {
+            title: "Hapus semua memori";
+            subtitle: AiCfg.confirm-wipe ? "Yakin? Semua catatan dan riwayat dihapus dan tidak bisa dikembalikan." : "Menghapus catatan, riwayat, dan file memorinya.";
+            if !AiCfg.confirm-wipe: Btn { text: "Hapus semua"; kind: "danger"; clicked => { AiCfg.confirm-wipe = true; } }
+            if AiCfg.confirm-wipe: Btn { text: "Batal"; clicked => { AiCfg.confirm-wipe = false; } }
+            if AiCfg.confirm-wipe: Btn { text: "Ya, hapus semua"; kind: "danger"; clicked => { AiCfg.confirm-wipe = false; AiCfg.wipe-memory(); } }
+        }
+    }
+}

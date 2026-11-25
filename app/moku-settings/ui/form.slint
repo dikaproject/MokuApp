@@ -1,0 +1,74 @@
+// The editable settings as the UI sees them. One field per control; indexes for enums.
+// Rust (src/form.rs) converts this to and from moku_core::Config.
+export struct Form {
+    // general
+    general-language: int,          // 0 id, 1 en
+    general-autostart: bool,
+    general-hotkey-toggle: string,
+    general-hotkey-quit: string,
+    // island
+    island-style: int,              // 0 dynamic, 1 notch
+    island-scale: int,              // percent, 75..130
+    island-open-on: int,            // 0 hover, 1 click
+    island-hover-delay: int,        // ms
+    island-hide-fullscreen: bool,
+    // appearance
+    appearance-material: int,       // 0 dark, 1 black
+    appearance-accent: string,      // #RRGGBB
+    appearance-follow-album: bool,
+    appearance-animations: int,     // 0 full, 1 reduced, 2 off
+    // features
+    media-enabled: bool,
+    media-lyrics: bool,
+    media-lyrics-in-pill: bool,
+    volume-osd-enabled: bool,
+    control-enabled: bool,
+    today-enabled: bool,
+    today-weather: bool,
+    today-city: string,
+    today-units: int,               // 0 metric, 1 imperial
+    timer-enabled: bool,
+    timer-focus: int,
+    timer-break: int,
+    timer-hold: bool,
+    clipboard-enabled: bool,
+    clipboard-keep-days: int,
+    clipboard-max-items: int,
+    clipboard-ignore: string,       // comma separated executable names
+    capture-enabled: bool,
+    capture-save-dir: string,
+    capture-copy: bool,
+    shelf-enabled: bool,
+    monitor-enabled: bool,
+    // system pills
+    system-battery: bool,
+    system-caps-lock: bool,
+    system-network: bool,
+    system-privacy-dots: bool,
+    system-meeting-mode: bool,
+    // reminders + prayer
+    reminders-water: bool,
+    reminders-water-interval: int,
+    reminders-water-target: int,
+    reminders-eye: bool,
+    reminders-eye-interval: int,
+    prayer-enabled: bool,
+    prayer-city: string,
+    prayer-lat: string,
+    prayer-lon: string,
+    prayer-minutes-before: int,
+    // ipc + privacy
+    ipc-enabled: bool,
+    ipc-ai-cards: bool,
+    ipc-max-notifications: int,
+    privacy-hide-body: bool,
+}
+
+// Messages for values the form could not use (empty = fine).
+export struct Problems {
+    hotkey-toggle: string,
+    hotkey-quit: string,
+    accent: string,
+    prayer-lat: string,
+    prayer-lon: string,
+}

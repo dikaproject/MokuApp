@@ -1,0 +1,220 @@
+// moku-setup's window: the onboarding look (pratinjau/05-Onboarding.png) in a small frame.
+// Shares the settings app's palette and widgets.
+import { Theme } from "../../moku-settings/ui/theme.slint";
+import { Btn, Toggle, Glyph } from "../../moku-settings/ui/widgets.slint";
+
+export global Setup {
+    // 0 install, 1 update (an installation exists), 2 uninstall.
+    in property <int> mode: 0;
+    // 0 ready, 1 working, 2 done, 3 error.
+    in-out property <int> phase: 0;
+    in property <string> version;
+    in property <string> old-version;
+    in property <string> install-dir;
+    in property <string> data-dir;
+    // Shown under the header when MOKU_INSTALL_ROOT / MOKU_REG_ROOT are set.
+    in property <bool> test-mode;
+    in-out property <bool> autostart: true;
+    in-out property <bool> delete-data: false;
+    in property <float> progress;
+    in property <string> status;
+    in property <string> error;
+    in property <bool> launched;
+    callback start();
+    callback close();
+}
+
+component CheckRow inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <bool> checked;
+    in property <bool> danger;
+    callback toggled(bool);
+    height: 60px;
+    border-radius: 16px;
+    background: Theme.card;
+    border-width: 1px;
+    border-color: #ffffff26;
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 14px;
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            horizontal-stretch: 1;
+            Text { text: root.title; font-size: 13.5px; font-weight: 600; color: root.danger && root.checked ? #ff6a61 : Theme.text; }
+            Text { text: root.subtitle; font-size: 11.5px; color: Theme.text3; overflow: elide; }
+        }
+        VerticalLayout {
+            alignment: center;
+            Toggle { checked: root.checked; toggled(v) => { root.toggled(v); } }
+        }
+    }
+}
+
+export component SetupWindow inherits Window {
+    title: Setup.mode == 2 ? "Hapus Moku" : "Pasang Moku";
+    preferred-width: 560px;
+    preferred-height: 420px;
+    min-width: 560px;
+    max-width: 560px;
+    min-height: 420px;
+    max-height: 420px;
+    default-font-family: Theme.font;
+    background: Theme.window-bg;
+
+    property <bool> uninstall: Setup.mode == 2;
+
+    // ------------------------------------------------------------ header
+    HorizontalLayout {
+        y: 0;
+        height: 58px;
+        padding-left: 26px;
+        padding-right: 26px;
+        spacing: 9px;
+        VerticalLayout {
+            alignment: center;
+            Image { source: @image-url("../../moku-settings/assets/logo.png"); width: 24px; height: 24px; }
+        }
+        Text { text: "Moku"; font-size: 14px; font-weight: 700; color: Theme.text; vertical-alignment: center; }
+        Rectangle { horizontal-stretch: 1; }
+        if Setup.test-mode: VerticalLayout {
+            alignment: center;
+            Rectangle {
+                height: 20px;
+                width: tm.preferred-width + 16px;
+                border-radius: 10px;
+                background: #ff9f0a33;
+                tm := Text { text: "MODE UJI"; font-size: 10px; font-weight: 700; color: Theme.orange; }
+            }
+        }
+        Text { text: "Versi " + Setup.version; font-size: 11.5px; color: Theme.text3; vertical-alignment: center; }
+    }
+
+    // ------------------------------------------------------------ body
+    Rectangle {
+        y: 58px;
+        height: root.height - 58px - 76px;
+        VerticalLayout {
+            alignment: center;
+            spacing: 10px;
+            padding-left: 40px;
+            padding-right: 40px;
+
+            HorizontalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 72px;
+                    height: 72px;
+                    Image { source: @image-url("../../moku-settings/assets/logo.png"); width: 72px; height: 72px; }
+                    if Setup.phase == 2: Rectangle {
+                        x: 50px;
+                        y: 50px;
+                        width: 26px;
+                        height: 26px;
+                        border-radius: 13px;
+                        background: root.uninstall ? Theme.fill3 : Theme.green;
+                        border-width: 2px;
+                        border-color: #1a1d3f;
+                        Glyph { g: "\u{E73E}"; font-size: 12px; color: #ffffff; }
+                    }
+                }
+            }
+            Text {
+                text: Setup.phase == 2 ? (root.uninstall ? "Moku sudah dihapus" : Setup.mode == 1 ? "Moku sudah diperbarui" : "Moku sudah terpasang")
+                    : Setup.phase == 3 ? (root.uninstall ? "Gagal menghapus Moku" : "Gagal memasang Moku")
+                    : root.uninstall ? "Hapus Moku?"
+                    : Setup.mode == 1 ? "Perbarui Moku" : "Pasang Moku";
+                font-size: 26px;
+                font-weight: 700;
+                color: Theme.text;
+                horizontal-alignment: center;
+            }
+            Text {
+                text: Setup.phase == 2
+                    ? (root.uninstall ? (Setup.delete-data ? "Aplikasi dan datamu sudah dihapus. Sampai jumpa!" : "Aplikasi sudah dihapus. Data dan pengaturanmu tetap disimpan.")
+                        : Setup.launched ? "Moku sudah berjalan. Lihat island di tepi atas layarmu, atau cari Moku di menu Start."
+                        : "Cari Moku di menu Start untuk menjalankannya.")
+                    : Setup.phase == 3 ? Setup.error
+                    : Setup.phase == 1 ? Setup.status
+                    : root.uninstall ? "Island, pintasan, dan entri di Aplikasi akan dihapus dari akun ini."
+                    : Setup.mode == 1 ? "Versi " + Setup.old-version + " akan diganti dengan " + Setup.version + ". Pengaturan dan datamu tetap ada."
+                    : "Island kecil di tepi atas layarmu. Dipasang untuk akunmu saja, tanpa hak admin.";
+                font-size: 13px;
+                color: Setup.phase == 3 ? #ff8a82 : Theme.text2;
+                wrap: word-wrap;
+                horizontal-alignment: center;
+            }
+            Rectangle { height: 4px; }
+
+            if Setup.phase == 0 && !root.uninstall: CheckRow {
+                title: "Jalankan saat Windows menyala";
+                subtitle: "Bisa diubah kapan saja di Pengaturan › Umum";
+                checked: Setup.autostart;
+                toggled(v) => { Setup.autostart = v; }
+            }
+            if Setup.phase == 0 && root.uninstall: CheckRow {
+                title: "Hapus juga data dan pengaturanku";
+                subtitle: Setup.data-dir;
+                checked: Setup.delete-data;
+                danger: true;
+                toggled(v) => { Setup.delete-data = v; }
+            }
+            if Setup.phase == 1: HorizontalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 360px;
+                    height: 6px;
+                    border-radius: 3px;
+                    background: #ffffff26;
+                    Rectangle {
+                        x: 0;
+                        width: parent.width * Math.clamp(Setup.progress, 0, 1);
+                        height: parent.height;
+                        border-radius: 3px;
+                        background: root.uninstall ? Theme.red : Theme.blue;
+                        animate width { duration: 160ms; easing: ease-out; }
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ footer
+    HorizontalLayout {
+        y: root.height - 76px;
+        height: 76px;
+        padding-left: 26px;
+        padding-right: 26px;
+        padding-bottom: 8px;
+        spacing: 10px;
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            Text {
+                text: root.uninstall ? "" : Setup.install-dir;
+                font-size: 11px;
+                color: Theme.text3;
+                overflow: elide;
+            }
+        }
+        if Setup.phase == 0: VerticalLayout {
+            alignment: center;
+            Btn { text: "Batal"; height: 36px; clicked => { Setup.close(); } }
+        }
+        if Setup.phase == 0: VerticalLayout {
+            alignment: center;
+            Btn {
+                text: root.uninstall ? "Hapus" : Setup.mode == 1 ? "Perbarui" : "Pasang";
+                kind: root.uninstall ? "danger" : "primary";
+                height: 36px;
+                clicked => { Setup.start(); }
+            }
+        }
+        if Setup.phase >= 2: VerticalLayout {
+            alignment: center;
+            Btn { text: Setup.phase == 3 ? "Tutup" : "Selesai"; kind: "primary"; height: 36px; clicked => { Setup.close(); } }
+        }
+    }
+}

@@ -1,0 +1,14 @@
+{
+  "session_id": "019a-thread",
+  "transcript_path": "C:\\Users\\nama\\.codex\\sessions\\2026\\11\\25\\rollout-019a.jsonl",
+  "cwd": "C:\\src\\toko-online",
+  "model": "gpt-5-codex",
+  "hook_event_name": "SubagentStop",
+  "turn_id": "turn-1",
+  "permission_mode": "default",
+  "agent_id": "a1",
+  "agent_type": "explorer",
+  "agent_transcript_path": "C:\\x.jsonl",
+  "stop_hook_active": false,
+  "last_assistant_message": "ok"
+}

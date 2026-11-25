@@ -1,0 +1,39 @@
+Moku - a dynamic island for Windows
+Copyright (C) 2026 Moku contributors
+Official project: https://github.com/dikaproject/MokuApp
+
+This program is free software: you can redistribute it and/or modify it under the terms of the
+GNU General Public License version 3 as published by the Free Software Foundation (see LICENSE).
+It is distributed WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+
+ADDITIONAL TERMS (GNU GPL version 3, section 7)
+
+These terms are added to the GPL for the whole of Moku, as section 7 allows. They take nothing
+away from the freedoms the GPL gives you: you may still use, study, change and share the code.
+
+1. Attribution (section 7(b)). Any copy or modified version you distribute must keep:
+   a. this NOTICE file, unchanged except that you may add your own lines below it; and
+   b. in the program's "about" page (Settings > Tentang in Moku), a visible line naming the
+      original project and its official repository: "Based on Moku -
+      https://github.com/dikaproject/MokuApp".
+
+2. Modified versions must be marked as different (section 7(c)). A modified version you
+   distribute must not present itself as Moku or as coming from the Moku project. Give it a
+   different name and a different icon, and say in its README or description that it is
+   modified from Moku, with a link to the official repository above.
+
+3. Name and logo (section 7(e)). No rights are granted to the name "Moku" as the name of a
+   modified version, or to the Moku logo (the lowercase "m" standing on a waterline), wherever it
+   appears: app/assets/icon/, app/moku-settings/assets/logo.png, pratinjau/07-Logo.png, the
+   icons built into the programs, and the scripts that draw it (make-icon.ps1, make-logo.ps1).
+   You may redistribute unmodified official releases as they are, logo included. A modified
+   version must replace the logo with its own.
+
+
+THIRD-PARTY SOFTWARE
+
+Moku is built with Rust crates under their own licences (MIT, Apache-2.0 and similar; see each
+crate's licence in Cargo.lock's sources). The settings window and the installer use Slint
+(https://slint.dev), used here under the GNU GPL version 3.

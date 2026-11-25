@@ -1,0 +1,76 @@
+import { Theme } from "theme.slint";
+import { Card, Setting, ToggleSetting, SectionLabel, Field } from "widgets.slint";
+
+// Track L: OCR layar and the smart clipboard actions. Its own global (src/ocr_page.rs saves
+// `[ocr]` and three keys of `[clipboard]` with a read-modify-write of config.toml), so the
+// shared Form stays untouched.
+export global OcrCfg {
+    in-out property <bool> enabled: true;
+    in-out property <string> hotkey: "Ctrl+Alt+T";
+    in-out property <string> language: "";
+    in-out property <bool> smart-actions: true;
+    in-out property <bool> smart-pill: true;
+    in-out property <bool> otp-guard: true;
+    // Why the typed hotkey / language is not used (empty = fine).
+    in property <string> problem;
+    in property <string> language-problem;
+    callback changed();
+}
+
+// Placed on the Pintasan page, below the launcher.
+export component OcrSettings inherits VerticalLayout {
+    SectionLabel { text: "SALIN TEKS DARI LAYAR (OCR)"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "OCR layar";
+            subtitle: "Seret area di layar, teksnya disalin. Dibaca di PC ini, tidak ada yang dikirim";
+            checked: OcrCfg.enabled;
+            toggled(v) => { OcrCfg.enabled = v; OcrCfg.changed(); }
+        }
+        Setting {
+            title: "Mulai OCR";
+            subtitle: OcrCfg.problem != "" ? OcrCfg.problem : "Bawaan Ctrl+Alt+T. Kalau dipakai aplikasi lain, island menampilkan pemberitahuan dan pintasan ini tidak aktif sampai kamu menggantinya";
+            Field {
+                width: 200px;
+                text: OcrCfg.hotkey;
+                invalid: OcrCfg.problem != "";
+                edited(t) => { OcrCfg.hotkey = t; OcrCfg.changed(); }
+            }
+        }
+        Setting {
+            title: "Bahasa";
+            subtitle: OcrCfg.language-problem != "" ? OcrCfg.language-problem : "Kosong: Indonesia, lalu Inggris. Bahasa OCR dipasang di Pengaturan Windows";
+            Field {
+                width: 200px;
+                text: OcrCfg.language;
+                placeholder: "mis. id-ID, en-US";
+                invalid: OcrCfg.language-problem != "";
+                edited(t) => { OcrCfg.language = t; OcrCfg.changed(); }
+            }
+        }
+    }
+
+    SectionLabel { text: "AKSI PINTAR DI CLIPBOARD"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Tombol aksi";
+            subtitle: "Warna (HEX, RGB, HSL), tautan (QR, buka), hitungan, JSON (rapikan), nomor HP (WhatsApp)";
+            checked: OcrCfg.smart-actions;
+            toggled(v) => { OcrCfg.smart-actions = v; OcrCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Pil saat cocok kuat";
+            subtitle: "Pil singkat ketika yang disalin jelas tautan, warna, hitungan, dan sejenisnya";
+            checked: OcrCfg.smart-pill;
+            toggled(v) => { OcrCfg.smart-pill = v; OcrCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Lindungi kode OTP";
+            subtitle: "Kode sekali pakai hanya di memori, tidak pernah ditulis ke disk, dihapus dari riwayat setelah 60 detik";
+            checked: OcrCfg.otp-guard;
+            toggled(v) => { OcrCfg.otp-guard = v; OcrCfg.changed(); }
+        }
+    }
+}

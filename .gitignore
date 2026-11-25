@@ -1,0 +1,13 @@
+/app/target/
+/.build/
+/wt/
+**/target/
+*.exe
+*.pdb
+prototype/results/**/burst-*.png
+
+# Local output and machine-specific files
+/dist/
+.claude/
+prototype/results/measurements.jsonl
+**/*-data/

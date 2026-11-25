@@ -1,0 +1,389 @@
+// Moku island - Slint spike.
+// One fixed-size transparent window (720 x 350 DIP). The glass shape inside it morphs
+// (width / height / radius) with Slint's built-in `spring()` easing; Rust only flips `mode`.
+
+// Animated shape metrics; Rust turns them into the window region (click-through outside).
+struct Geom { w: length, h: length, r: length, blur: length, dy: length }
+
+// ---- small building blocks ---------------------------------------------------------------
+
+// 24x24 stroke icon drawn from SVG path data.
+component Icon inherits Path {
+    in property <string> d;
+    in property <brush> tint: #ffffffc4;
+    in property <length> thickness: 1.6px;
+    commands: root.d;
+    viewbox-width: 24;
+    viewbox-height: 24;
+    stroke: root.tint;
+    stroke-width: root.thickness;
+    stroke-line-cap: round;
+    stroke-line-join: round;
+}
+
+// Logo mark from SPEC.md (100x100 box, stroke 9.5, #4FD8FF -> #7C6BFF -> #FF5FA2).
+component LogoMark inherits Path {
+    in property <length> size: 18px;
+    width: root.size;
+    height: root.size;
+    commands: "M 10 70 H 25 V 51 A 12.5 12.5 0 0 1 50 51 V 70 V 51 A 12.5 12.5 0 0 1 75 51 V 70 H 90";
+    viewbox-width: 100;
+    viewbox-height: 100;
+    stroke: @linear-gradient(90deg, #4FD8FF 0%, #7C6BFF 50%, #FF5FA2 100%);
+    stroke-width: root.size * 0.095;
+    stroke-line-cap: round;
+    stroke-line-join: round;
+}
+
+component Label inherits Text {
+    horizontal-alignment: left;
+}
+
+// Cross-fades a group of pill content in/out.
+component Fade inherits Rectangle {
+    in property <bool> on;
+    cache-rendering-hint: true;
+    opacity: root.on ? 1 : 0;
+    animate opacity {
+        duration: root.on ? 170ms : 90ms;
+        delay: root.on ? 90ms : 0ms;
+        easing: ease-out;
+    }
+    @children
+}
+
+// Panel item: fade + 8 px slide-up, staggered by 40 ms per index when opening.
+component Reveal inherits Rectangle {
+    in property <bool> on;
+    in property <int> idx: 0;
+    property <length> slide: root.on ? 0px : 8px;
+    cache-rendering-hint: true;
+    opacity: root.on ? 1 : 0;
+    animate opacity {
+        duration: root.on ? 240ms : 90ms;
+        delay: root.on ? 70ms + root.idx * 40ms : 0ms;
+        easing: ease-out;
+    }
+    animate slide {
+        duration: root.on ? 300ms : 90ms;
+        delay: root.on ? 70ms + root.idx * 40ms : 0ms;
+        easing: ease-out;
+    }
+    Rectangle {
+        y: root.slide;
+        width: root.width;
+        height: root.height;
+        @children
+    }
+}
+
+component Pill inherits Rectangle {
+    in property <brush> fill: #ffffff1f;
+    border-radius: self.height / 2;
+    background: root.fill;
+    @children
+}
+
+component RoundBtn inherits Rectangle {
+    in property <string> d;
+    in property <length> glyph: 14px;
+    background: #ffffff26;
+    border-radius: self.height / 2;
+    Icon {
+        d: root.d;
+        width: root.glyph;
+        height: root.glyph;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+    }
+}
+
+// ---- the island ---------------------------------------------------------------------------
+
+export component Island inherits Window {
+    // 0 idle, 1 hover, 2 music, 3 music-panel
+    in property <int> mode: 0;
+    // 0 hover ease-out, 1 open panel, 2 close panel, 3 pill <-> pill
+    in property <int> anim-kind: 0;
+    in property <length> top-gap: 8px;
+    // true when a real DWM backdrop (acrylic) sits behind the window: use the spec's lighter tint.
+    in property <bool> real-glass: false;
+    in property <bool> no-shadow: false;   // diagnostics for the CPU numbers (--no-shadow / --no-clip)
+    in property <bool> no-clip: false;
+
+    callback pointer-entered();
+    callback pointer-left();
+    callback clicked();
+    callback quit();
+    callback geometry(Geom);
+
+    out property <Geom> geom: { w: root.shape-w, h: root.shape-h, r: root.shape-r, blur: root.sh-blur, dy: root.sh-dy };
+    changed geom => { root.geometry(root.geom); }
+
+    no-frame: true;
+    background: transparent;
+    always-on-top: true;
+    title: "Moku island";
+    width: 720px;
+    height: 350px;
+    default-font-family: "Segoe UI Variable Text";
+    forward-focus: fs;
+
+    // --- motion table (SPEC.md). spring(bounce): zeta = 1 - bounce, natural period = duration.
+    property <duration> dur: root.anim-kind == 0 ? 130ms
+        : root.anim-kind == 1 ? 400ms      // open panel : zeta 0.82
+        : root.anim-kind == 2 ? 300ms      // close panel: zeta 1.0
+        : 480ms;                           // pill <-> pill: zeta 0.75
+    property <easing> ease: root.anim-kind == 0 ? ease-out
+        : root.anim-kind == 1 ? spring(0.18)
+        : root.anim-kind == 2 ? spring(0)
+        : spring(0.25);
+
+    property <bool> is-idle: root.mode == 0;
+    property <bool> is-hover: root.mode == 1;
+    property <bool> is-music: root.mode == 2;
+    property <bool> is-panel: root.mode == 3;
+
+    property <length> shape-w: root.mode == 0 ? 120px : root.mode == 1 ? 200px : root.mode == 2 ? 230px : 640px;
+    property <length> shape-h: root.mode == 0 ? 36px : root.mode == 1 ? 40px : root.mode == 2 ? 36px : 276px;
+    property <length> shape-r: root.mode == 3 ? 38px : root.shape-h / 2;
+    animate shape-w { duration: root.dur; easing: root.ease; }
+    animate shape-h { duration: root.dur; easing: root.ease; }
+    animate shape-r { duration: root.dur; easing: root.ease; }
+    // Soft shadow (SPEC: y 10-26, blur 28-64); animated with the shape so it never pops.
+    property <length> sh-blur: root.mode == 3 ? 40px : 26px;
+    property <length> sh-dy: root.mode == 3 ? 18px : 10px;
+    animate sh-blur { duration: root.dur; easing: root.ease; }
+    animate sh-dy { duration: root.dur; easing: root.ease; }
+
+    // Idle/hover share logo + time; they slide between the two layouts together with the shape.
+    property <length> logo-x: root.is-hover ? 16px : 71px;
+    property <length> time-x: root.is-hover ? 41px : 97px;
+    animate logo-x { duration: root.dur; easing: root.ease; }
+    animate time-x { duration: root.dur; easing: root.ease; }
+
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.Escape) { root.quit(); return accept; }
+            reject
+        }
+    }
+
+    shape := Rectangle {
+        x: (root.width - self.width) / 2;
+        y: root.top-gap;
+        width: root.shape-w;
+        height: root.shape-h;
+        border-radius: root.shape-r;
+        clip: !root.no-clip;
+        // Glass fallback: no backdrop blur in Slint, so a ~75 % dark tint instead.
+        background: root.real-glass ? (root.is-panel ? #0C0C1685 : #0A0A1278) : (root.is-panel ? #0C0C16C4 : #0A0A12C0);
+        border-width: 1px;
+        border-color: @linear-gradient(135deg, #ffffff8c 0%, #ffffff0d 50%, #ffffff40 100%);
+        drop-shadow-color: root.no-shadow ? #00000000 : #00000078;
+        drop-shadow-blur: root.sh-blur;
+        drop-shadow-offset-y: root.sh-dy;
+
+        // ---------- idle + hover (200 px wide, centred) ----------
+        Fade {
+            on: root.is-idle || root.is-hover;
+            x: (parent.width - self.width) / 2;
+            width: 200px;
+            height: 40px;
+            LogoMark { x: root.logo-x; y: (parent.height - self.height) / 2; }
+            Label {
+                x: root.time-x;
+                y: 0px;
+                height: parent.height;
+                vertical-alignment: center;
+                text: "10.24";
+                color: white;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            Rectangle {
+                opacity: root.is-hover ? 1 : 0;
+                animate opacity { duration: 160ms; delay: root.is-hover ? 70ms : 0ms; easing: ease-out; }
+                Label {
+                    x: 92px;
+                    height: 40px;
+                    vertical-alignment: center;
+                    text: "Sel, 24 Nov";
+                    color: #ffffffb8;
+                    font-size: 13px;
+                }
+                Icon {
+                    d: "M 6 9 L 12 15 L 18 9";
+                    x: 172px;
+                    y: 13px;
+                    width: 14px;
+                    height: 14px;
+                    tint: #ffffff75;
+                    thickness: 1.5px;
+                }
+            }
+        }
+
+        // ---------- music pill (230 px wide, centred) ----------
+        Fade {
+            on: root.is-music;
+            x: (parent.width - self.width) / 2;
+            width: 230px;
+            height: 36px;
+            Rectangle {
+                x: 9px;
+                y: 6px;
+                width: 24px;
+                height: 24px;
+                border-radius: 7px;
+                background: @linear-gradient(135deg, #FF8A5C 0%, #FF3D77 100%);
+            }
+            Label {
+                x: 42px;
+                height: 36px;
+                vertical-alignment: center;
+                text: "Midnight Drive";
+                color: white;
+                font-size: 13px;
+                font-weight: 600;
+            }
+            Label {
+                x: 140px;
+                height: 36px;
+                vertical-alignment: center;
+                text: "Kaia";
+                color: #ffffffb8;
+                font-size: 13px;
+            }
+            for h[i] in [8, 14, 18, 14, 10]: Rectangle {
+                x: 187px + i * 5px;
+                y: (36px - h * 1px) / 2;
+                width: 2.5px;
+                height: h * 1px;
+                border-radius: 1.25px;
+                background: #FF375F;
+            }
+        }
+
+        // ---------- music panel (640 x 276) ----------
+        Rectangle {
+            x: (parent.width - self.width) / 2;
+            width: 640px;
+            height: 276px;
+
+            // tab bar
+            Reveal {
+                on: root.is-panel; idx: 0;
+                x: 15px; y: 15px; width: 610px; height: 38px;
+                Rectangle { border-radius: 19px; background: #ffffff1c; }
+                Pill {
+                    x: 4px; y: 4px; width: 84px; height: 30px;
+                    fill: #ffffff2e;
+                    Icon { d: "M 9 18 V 5 L 21 3 V 16 M 9 18 A 3 3 0 1 1 3 18 A 3 3 0 1 1 9 18 M 21 16 A 3 3 0 1 1 15 16 A 3 3 0 1 1 21 16"; x: 11px; y: 7px; width: 16px; height: 16px; tint: white; }
+                    Label { x: 33px; height: 30px; vertical-alignment: center; text: "Musik"; color: white; font-size: 14px; font-weight: 600; }
+                }
+                for p[i] in [
+                    "M 5 4 H 19 A 2 2 0 0 1 21 6 V 20 A 2 2 0 0 1 19 22 H 5 A 2 2 0 0 1 3 20 V 6 A 2 2 0 0 1 5 4 Z M 8 2 V 6 M 16 2 V 6 M 3 10 H 21",
+                    "M 4 8 H 12 M 16 8 H 20 M 4 16 H 8 M 12 16 H 20 M 14 5 V 11 M 10 13 V 19",
+                    "M 22 12 H 16 L 14 15 H 10 L 8 12 H 2 M 5.45 5.11 L 2 12 V 18 A 2 2 0 0 0 4 20 H 20 A 2 2 0 0 0 22 18 V 12 L 18.55 5.11 A 2 2 0 0 0 16.76 4 H 7.24 A 2 2 0 0 0 5.45 5.11 Z",
+                    "M 12 6 V 12 L 16 14 M 22 12 A 10 10 0 1 1 2 12 A 10 10 0 1 1 22 12",
+                    "M 8 2 H 16 V 6 H 8 Z M 16 4 H 18 A 2 2 0 0 1 20 6 V 20 A 2 2 0 0 1 18 22 H 6 A 2 2 0 0 1 4 20 V 6 A 2 2 0 0 1 6 4 H 8",
+                    "M 14.5 4 H 9.5 L 7 7 H 4 A 2 2 0 0 0 2 9 V 18 A 2 2 0 0 0 4 20 H 20 A 2 2 0 0 0 22 18 V 9 A 2 2 0 0 0 20 7 H 17 Z M 16 13 A 4 4 0 1 1 8 13 A 4 4 0 1 1 16 13",
+                    "M 7 2 H 17 A 2 2 0 0 1 19 4 V 20 A 2 2 0 0 1 17 22 H 7 A 2 2 0 0 1 5 20 V 4 A 2 2 0 0 1 7 2 Z M 12 18 H 12.01",
+                    "M 22 12 H 18 L 15 21 L 9 3 L 6 12 H 2",
+                    "M 19 11 A 8 8 0 1 1 3 11 A 8 8 0 1 1 19 11 M 21 21 L 16.65 16.65"
+                ]: Icon {
+                    d: p;
+                    x: 119px + i * 58px; y: 11px; width: 16px; height: 16px;
+                    tint: #ffffffd0; thickness: 1.5px;
+                }
+            }
+
+            // album art
+            Reveal {
+                on: root.is-panel; idx: 1;
+                x: 15px; y: 67px; width: 156px; height: 156px;
+                Rectangle {
+                    border-radius: 28px;
+                    background: @linear-gradient(135deg, #FF8A5C 0%, #FF3D77 100%);
+                }
+                Icon {
+                    d: "M 9 18 V 5 L 21 3 V 16 M 9 18 A 3 3 0 1 1 3 18 A 3 3 0 1 1 9 18 M 21 16 A 3 3 0 1 1 15 16 A 3 3 0 1 1 21 16";
+                    width: 70px; height: 70px;
+                    x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+                    tint: white; thickness: 4.5px;
+                }
+            }
+
+            // title / artist / device chip
+            Reveal {
+                on: root.is-panel; idx: 2;
+                x: 186px; y: 62px; width: 300px; height: 56px;
+                Label { x: 0px; y: 0px; text: "Midnight Drive"; color: white; font-size: 20px; font-weight: 700; }
+                Label { x: 0px; y: 31px; text: "Kaia · Neon Atlas"; color: #ffffffb8; font-size: 14px; }
+            }
+            Reveal {
+                on: root.is-panel; idx: 2;
+                x: 533px; y: 67px; width: 92px; height: 26px;
+                Pill {
+                    fill: #ffffff26;
+                    Icon { d: "M 3 14 V 12 A 9 9 0 0 1 21 12 V 14 M 21 19 A 2 2 0 0 1 19 21 H 18 A 2 2 0 0 1 16 19 V 16 A 2 2 0 0 1 18 14 H 21 Z M 3 19 A 2 2 0 0 0 5 21 H 6 A 2 2 0 0 0 8 19 V 16 A 2 2 0 0 0 6 14 H 3 Z"; x: 10px; y: 6px; width: 14px; height: 14px; tint: white; thickness: 1.8px; }
+                    Label { x: 29px; height: 26px; vertical-alignment: center; text: "Buds Pro"; color: white; font-size: 13px; font-weight: 600; }
+                }
+            }
+
+            // lyrics
+            Reveal {
+                on: root.is-panel; idx: 3;
+                x: 186px; y: 118px; width: 420px; height: 70px;
+                Label { x: 0px; y: 0px; text: "lampu kota memudar di kaca jendela"; color: #ffffff75; font-size: 13px; }
+                Label { x: 0px; y: 21px; text: "dan kota pun perlahan terlelap"; color: white; font-size: 16px; font-weight: 600; }
+                Label { x: 0px; y: 44px; text: "di bawah lampu jalan kita bicara"; color: #ffffff75; font-size: 13px; }
+            }
+
+            // progress
+            Reveal {
+                on: root.is-panel; idx: 4;
+                x: 186px; y: 188px; width: 440px; height: 18px;
+                Label { x: 0px; height: 16px; vertical-alignment: center; text: "1:24"; color: #ffffff75; font-size: 13px; }
+                Rectangle { x: 33px; y: 7px; width: 372px; height: 3.5px; border-radius: 2px; background: #ffffff38; }
+                Rectangle { x: 33px; y: 7px; width: 372px * 0.37; height: 3.5px; border-radius: 2px; background: white; }
+                Label { x: 410px; width: 28px; height: 16px; vertical-alignment: center; horizontal-alignment: right; text: "3:47"; color: #ffffff75; font-size: 13px; }
+            }
+
+            // transport row
+            Reveal {
+                on: root.is-panel; idx: 5;
+                x: 186px; y: 214px; width: 440px; height: 46px;
+                Pill {
+                    x: 0px; y: 8px; width: 64px; height: 30px;
+                    fill: #ffffff26;
+                    Icon { d: "M 9 18 V 5 L 21 3 V 16 M 9 18 A 3 3 0 1 1 3 18 A 3 3 0 1 1 9 18 M 21 16 A 3 3 0 1 1 15 16 A 3 3 0 1 1 21 16"; x: 10px; y: 8px; width: 14px; height: 14px; tint: white; thickness: 1.8px; }
+                    Label { x: 28px; height: 30px; vertical-alignment: center; text: "Lirik"; color: white; font-size: 13px; font-weight: 600; }
+                }
+                // previous
+                Icon { d: "M 19 20 L 9 12 L 19 4 Z M 5 19 V 5"; x: 173px; y: 14px; width: 18px; height: 18px; tint: white; thickness: 2.2px; }
+                // play / pause
+                Rectangle {
+                    x: 213px; y: 0px; width: 46px; height: 46px; border-radius: 23px; background: white;
+                    Rectangle { x: 16px; y: 14px; width: 5px; height: 18px; border-radius: 1.5px; background: #0C0C16; }
+                    Rectangle { x: 25px; y: 14px; width: 5px; height: 18px; border-radius: 1.5px; background: #0C0C16; }
+                }
+                // next
+                Icon { d: "M 5 4 L 15 12 L 5 20 Z M 19 5 V 19"; x: 280px; y: 14px; width: 18px; height: 18px; tint: white; thickness: 2.2px; }
+                RoundBtn {
+                    x: 409px; y: 8px; width: 30px; height: 30px;
+                    d: "M 11 5 L 6 9 H 2 V 15 H 6 L 11 19 Z M 15.54 8.46 A 5 5 0 0 1 15.54 15.54 M 19.07 4.93 A 10 10 0 0 1 19.07 19.07";
+                }
+            }
+        }
+
+        // ---------- pointer handling (top-most) ----------
+        TouchArea {
+            changed has-hover => {
+                if (self.has-hover) { root.pointer-entered(); } else { root.pointer-left(); }
+            }
+            clicked => { root.clicked(); }
+        }
+    }
+}

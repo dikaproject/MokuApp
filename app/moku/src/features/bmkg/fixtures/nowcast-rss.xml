@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+    <?xml-stylesheet type="text/xsl" href="/cap/nowcast-rss-style.xsl"?>
+    <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+        <channel>
+            <title>Peringatan Dini Cuaca BMKG</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/rss.xml</link>
+            <description>Peringatan Dini Cuaca dari BMKG (Badan Meteorologi, Klimatologi, dan Geofisika)</description>
+            <atom:link href="https://www.bmkg.go.id/alerts/nowcast/id/rss.xml" rel="self" type="application/rss+xml"/>
+            <language>id</language>
+            <copyright>public domain</copyright>
+            <pubDate>Tue, 24 Nov 2026 17:16:22 +0000</pubDate>
+            <lastBuildDate>Tue, 24 Nov 2026 17:16:22 +0000</lastBuildDate>
+            <docs>http://blogs.law.harvard.edu/tech/rss</docs>
+            
+        <item>
+            <title>Hujan Lebat disertai Petir di Nusa Tenggara Barat</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CNB20261124010_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 25 November 2026, 01:20 WITA di sebagian wilayah Nusa Tenggara Barat, khususnya di JEROWARU, LABUHAN BADAS, LINGSAR, LUNYUK, NARMADA, SEKOTONG.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 03:30 WITA.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.52.010</guid>
+            <pubDate>Wed, 25 Nov 2026 01:10:00 +0800</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Riau</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CRU20261124009_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 25 November 2026, 00:06 WIB di sebagian wilayah Riau, khususnya di BANGUN PURBA, BANTAN, BATANG CENAKU, BATANG GANGSAL, BATANG PERANAP, BENAI, BENGKALIS, CERENTI, GUNUNGTOAR, HULU KUANTAN, INUMAN, KABUN, KAMPAR KIRI, KAMPAR KIRI HULU, KATEMAN, KELAYANG, KEPENUHAN HULU, KOTO KAMPAR HULU, KUALA KAMPAR, KUANTAN HILIR, KUANTAN HILIR SEBERANG, KUANTAN MUDIK, KUANTAN TENGAH, KUNTO DARUSSALAM, KUOK, LANGGAM, LIRIK, LOGAS TANAH DARAT, LUBUK BATU JAYA, MANDAH, MERBAU, PAGARAN TAPAH DARUSSALAM, PANGEAN, PANGKALAN KURAS, PASIR PENYU, PELALAWAN, PELANGIRAN, PERANAP, PUCUK RANTAU, PULAU BURUNG, PULAUMERBAU, RAKIT KULIM, RAMBAH, RAMBAH HILIR, RAMBAH SAMO, RANGSANG BARAT, RANGSANG PESISIR, RENGAT BARAT, ROKAN IV KOTO, SALO, SENTAJO RAYA, SIBERIDA, SINGINGI, SINGINGI HILIR, SUNGAI APIT, SUNGAI LALA, TAMBUSAI, TANDUN, TAPUNG, TAPUNG HULU, TASIK PUTRI PUYU, TELUK BELENGKONG, TELUK MERANTI, UJUNG BATU, UKUI, XIII KOTO KAMPAR.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 04:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.14.009</guid>
+            <pubDate>Tue, 24 Nov 2026 23:56:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Sulawesi Utara</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CSR20261124005_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 25 November 2026, 01:02 WITA di sebagian wilayah Sulawesi Utara, khususnya di SINONSAYANG, TATAPAAN.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 04:00 WITA.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.71.005</guid>
+            <pubDate>Wed, 25 Nov 2026 00:50:00 +0800</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Bali</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CBL20261124006_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 25 November 2026, 01:10 WITA di sebagian wilayah Bali, khususnya di DENPASAR BARAT.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 03:00 WITA.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.51.006</guid>
+            <pubDate>Wed, 25 Nov 2026 00:50:00 +0800</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Sumatera Selatan</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CSS20261124010_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 25 November 2026, 00:15 WIB di sebagian wilayah Sumatera Selatan, khususnya di ABAB, BABAT SUPAT, BABAT TOMAN, BANYUASIN II, BANYUASIN III, BATANG HARI LEKO, BELIMBING, BENAKAT, BETUNG, GUNUNG MEGANG, KARANG DAPO, KARANG JAYA, KELUANG, LAIS, LALAN, LAWANG WETAN, LUBUK LINGGAU BARAT I, LUBUK LINGGAU BARAT II, LUBUK LINGGAU SELATAN I, LUBUK LINGGAU SELATAN II, LUBUK LINGGAU TIMUR I, LUBUK LINGGAU TIMUR II, LUBUK LINGGAU UTARA I, LUBUK LINGGAU UTARA II, MEGANG SAKTI, MUARA BELITI, MUARA KELINGI, MUARA LAKITAN, PENUKAL, PENUKAL UTARA, PLAKAT TINGGI, PULAU RIMAU, PURWODADI, RAWAS ULU, RUPIT, SALING, SANGA DESA, SEKAYU, SELANGIT, STL ULU TERAWAS, SUAK TAPEH, SUMBER HARTA, SUNGAI KERUH, SUNGAI LILIN, TALANG UBI, TANJUNG LAGO, TIANG PUMPUNG KEPUNGUT, TUAH NEGERI, TUGUMULYO, TUNGKAL ILIR, ULU RAWAS.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 03:15 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.16.010</guid>
+            <pubDate>Tue, 24 Nov 2026 23:45:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Kalimantan Barat</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CKB20261124006_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 25 November 2026, 00:00 WIB di sebagian wilayah Kalimantan Barat, khususnya di HULU SUNGAI, MATAN HILIR SELATAN, NANGA TAYAP, PEMAHAN, SAYAN, SOKAN, SUNGAI MELAYU RAYAK, TANAH PINOH, TANAH PINOH BARAT, TUMBANG TITI.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 02:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.61.006</guid>
+            <pubDate>Tue, 24 Nov 2026 23:30:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Aceh</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CAH20261124007_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 24 November 2026, 23:29 WIB di sebagian wilayah Aceh, khususnya di BABUL RAHMAH, BENDAHARA, PULAU BANYAK, PULAU BANYAK BARAT, SIMEULUE BARAT, SIMEULUE TIMUR, TELUK DALAM, TEUPAH SELATAN, TEUPAH TENGAH.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 02:50 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.11.007</guid>
+            <pubDate>Tue, 24 Nov 2026 23:19:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Jambi</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CJI20261124005_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 24 November 2026, 23:29 WIB di sebagian wilayah Jambi, khususnya di LIMUN, PAMENANG BARAT.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 02:50 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.15.005</guid>
+            <pubDate>Tue, 24 Nov 2026 23:19:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Papua Barat</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CPB20261124003_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 25 November 2026, 01:10 WIT di sebagian wilayah Papua Barat, khususnya di CATUBOUW, HINGK, KURI WAMESA, MANOKWARI BARAT, MANOKWARI SELATAN, MANOKWARI TIMUR, MANOKWARI UTARA, MASNI, MINYAMBAOUW, PRAFI, RASIEI, SIDEY, TANAH RUBUH, TESTEGA, WARMARE, WASIOR, WONDIBOY.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 04:00 WIT.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.92.003</guid>
+            <pubDate>Wed, 25 Nov 2026 01:00:00 +0900</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Kep. Riau</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CKR20261124005_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 24 November 2026, 23:00 WIB di sebagian wilayah Kep. Riau, khususnya di BUNGURAN TIMUR, BUNGURAN TIMUR LAUT, KUNDUR UTARA, PALMATAK.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 02:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.21.005</guid>
+            <pubDate>Tue, 24 Nov 2026 22:50:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Kalimantan Utara</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CKU20261124004_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 24 November 2026, 23:40 WITA di sebagian wilayah Kalimantan Utara, khususnya di BUNYU, KRAYAN SELATAN, KRAYAN TIMUR, LUMBIS, LUMBIS OGONG, MALINAU BARAT, MALINAU SELATAN, MALINAU UTARA, MENTARANG HULU, PESO, PUJUNGAN, SEKATAK, SESAYAP HILIR, TARAKAN UTARA.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 02:30 WITA.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.65.004</guid>
+            <pubDate>Tue, 24 Nov 2026 23:35:00 +0800</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Kalimantan Tengah</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CKG20261124007_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 24 November 2026, 22:45 WIB di sebagian wilayah Kalimantan Tengah, khususnya di DUSUN SELATAN.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 03:30 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.62.007</guid>
+            <pubDate>Tue, 24 Nov 2026 22:35:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Sumatera Selatan</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CSS20261124009_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 24 November 2026, 22:40 WIB di sebagian wilayah Sumatera Selatan, khususnya di ABAB, BANYUASIN III, KARANG DAPO, KARANG JAYA, KIKIM BARAT, KIKIM SELATAN, LAIS, LUBAI ULU, LUBUK BATANG, LUBUK LINGGAU BARAT I, LUBUK LINGGAU BARAT II, LUBUK LINGGAU UTARA I, MEGANG SAKTI, MUARA BELIDA, MUARA KELINGI, MUARA LAKITAN, PENINJAUAN, PENUKAL, PENUKAL UTARA, PLAKAT TINGGI, RAMBANG DANGKU, RANTAU BAYUR, RAWAS ILIR, SEKAYU, SELANGIT, SEMIDANG AJI, STL ULU TERAWAS, SUKA KARYA, SUMBER HARTA, SUNGAI KERUH, SUNGAI ROTAN, TALANG UBI, TANJUNG AGUNG, TEBING TINGGI, TUAH NEGERI, ULU RAWAS.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 00:30 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.16.009</guid>
+            <pubDate>Tue, 24 Nov 2026 22:10:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Sumatera Barat</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CSB20261124007_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 24 November 2026, 22:30 WIB di sebagian wilayah Sumatera Barat, khususnya di 2 X 11 KAYU TANAM, AIRPURA, AKABILURU, AMPEK NAGARI, ASAM JUJUHAN, BANUHAMPU, BASA AMPEK BALAI TAPAN, BASO, BATANG ANAI, BATIPUAH SELATAN, BATIPUH, BONJOL, BUKIT SUNDI, CANDUNG, DANAU SINGKARAK, DUO KOTO, GUNUNG TALANG, GUNUNGTULEH, IV KOTO AUR MALINTANG, IV NAGARI, IX KOTO SUNGAI LASI, JUNJUNG SIRIH, KAMANG BARU, KAPUR IX, KOTO BALINGKA, KOTO BARU, KOTO BESAR, KOTO PARIK GADANG DIATEH, KOTO SALAK, KOTO TANGAH, KOTO VII, KUBUNG, KUPITAN, LAREH SAGO HALABAN, LEMBAH MELINTANG, LEMBAH SEGAR, LENGAYANG, LIMA KAUM, LINGGO SARI BAGANTI, LINTAU BUO, LINTAU BUO UTARA, LUAK, LUBUAK TAROK, LUBUK ALUNG, LUBUK BASUNG, LUBUK SIKAPING, LUBUK SIKARAH, MALALAK, MAPAT TUNGGUL, MAPAT TUNGGUL SELATAN, PADANG GANTING, PADANG LAWEH, PADANG PANJANG BARAT, PADANG PANJANG TIMUR, PANCUNG SOAL, PANGKALAN KOTO BARU, PANTI, PARIANGAN, PASAMAN, PAUH, PAUH DUO, PAYUNG SEKAKI, PULAU PUNJUNG, RAMBATAN, RANAH AMPEK HULU TAPAN, RANAH BATAHAN, RANAH PESISIR, RAO SELATAN, RAO UTARA, SALIMPAUANG, SANGIR, SANGIR BALAI JANGGO, SANGIR BATANG HARI, SANGIR JUJUAN, SASAK RANAH PESISIR, SEMBILAN KOTO, SIJUNJUNG, SIMPANG ALAHAN MATI, SITIUNG, SITUJUAH LIMO NAGARI, SUMPUR KUDUS, SUNGAI PUA, SUNGAI TARAB, SUNGAIAUR, SUNGAIBEREMAS, SUNGAYANG, SUTERA, TALAMAU, TANJUANG BARU, TANJUNG EMAS, TANJUNG GADANG, TANJUNG HARAPAN, TANJUNG MUTIARA, TIGO LURAH, TIGO NAGARI, TIMPEH, TIUMANG, X KOTO, X KOTO DIATAS, X KOTO SINGKARAK.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 00:30 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.13.007</guid>
+            <pubDate>Tue, 24 Nov 2026 22:10:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Sumatera Utara</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CSU20261124005_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 24 November 2026, 22:00 WIB di sebagian wilayah Sumatera Utara, khususnya di BAHOROK, BATANG LUBU SUTAM, BATANG NATAL, HUTA BARGOT, HUTA RAJA TINGGI, KUTABULUH, KUTAMBARU, LAHEWA TIMUR, LAUBALENG, LOTU, MARDINGDING, MUARA BATANG GADIS, MUARA BATANG TORU, NAGA JUANG, PANTAI CERMIN, PANYABUNGAN BARAT, PANYABUNGAN SELATAN, PUNCAK SORIK MARAPI, SALAPIAN, SARUDIK, SAWO, SIABU, SIBOLGA KOTA, SIBOLGA SAMBAS, SOSA, TANO TOMBANGAN ANGKOLA, TAPIAN NAULI.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 01:00 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.12.005</guid>
+            <pubDate>Tue, 24 Nov 2026 21:30:00 +0700</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Sulawesi Tengah</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CSG20261124003_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 24 November 2026, 22:29 WITA di sebagian wilayah Sulawesi Tengah, khususnya di BALINGGI, BANAWA, BANAWA SELATAN, BANAWA TENGAH, BIAU, BOKAT, BUKAL, DAMPAL SELATAN, DOLO SELATAN, KARAMAT, KINOVARO, LAKEA, MANTIKULORE, MOMUNU, PALELEH, PALOLO, PALU SELATAN, PALU UTARA, PINEMBANI, POSO PESISIR, POSO PESISIR UTARA, SAUSU, SIGI BIROMARU, SOJOL UTARA, TANAMBULAVA, TANANTOVEA, TATANGA, TAWAELI, TILOAN, TORUE, ULUJADI.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 02:00 WITA.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.72.003</guid>
+            <pubDate>Tue, 24 Nov 2026 22:17:00 +0800</pubDate>
+        </item>
+
+        <item>
+            <title>Hujan Lebat disertai Petir di Bengkulu</title>
+            <link>https://www.bmkg.go.id/alerts/nowcast/id/CBK20261124005_alert.xml</link>
+            <description>Hujan lebat disertai petir akan terjadi pada 24 November 2026, 19:28 WIB di sebagian wilayah Bengkulu, khususnya di AIR DIKIT, AIR NIPIS, AIR RAMI, AMEN, BINGIN KUNING, GIRI MULYA, IPUH, KEDURANG, KOTA MUKOMUKO, LEBONG SAKTI, LEBONG SELATAN, LEBONG TENGAH, LEBONG UTARA, MALIN DEMAN, MARGA SAKTI SEBELAT, NAPAL PUTIH, PADANG GUCI HULU, PELABAI, PENARIK, PINANG BELAPIS, PINANG RAYA, PONDOK SUGUH, PUTRI HIJAU, SUNGAI RUMBAI, TERAMANG JAYA, TOPOS, ULOK KUPAI, ULU MANNA, URAM JAYA.
+ Kondisi ini berpotensi menimbulkan dampak berupa jarak pandang berkurang, angin kencang, dan banjir lokal.
+ Masyarakat dihimbau untuk tetap waspada, mengurangi aktivitas di luar ruangan, serta mengambil langkah-langkah pencegahan yang diperlukan guna menjaga keselamatan.
+ Kondisi diperkirakan dapat berlangsung hingga 25 November 2026, 00:50 WIB.</description>
+            <author>cuaca.ekstrem@bmkg.go.id (BMKG)</author>
+            <category>Met</category>
+            <guid isPermaLink="false">2.49.0.1.360.0.2026.11.24.17.17.005</guid>
+            <pubDate>Tue, 24 Nov 2026 19:18:00 +0700</pubDate>
+        </item>
+        </channel>
+    </rss>

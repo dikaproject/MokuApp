@@ -1,0 +1,426 @@
+import { Cfg } from "cfg.slint";
+import { Theme } from "theme.slint";
+import { PrivacyNote } from "pages-m.slint";
+import { Btn, Segmented, Glyph, IconTile, Field, Kbd, MiniPill } from "widgets.slint";
+
+component Chip inherits Rectangle {
+    in property <string> text;
+    in property <bool> on;
+    callback toggled();
+    height: 34px;
+    border-radius: 17px;
+    background: root.on ? #ffffff30 : #ffffff0d;
+    border-width: 1px;
+    border-color: root.on ? #ffffff59 : #ffffff29;
+    animate background { duration: 100ms; }
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: 7px;
+        if root.on: Glyph { g: "\u{E73E}"; font-size: 11px; width: 12px; }
+        Text {
+            text: root.text;
+            font-size: 13px;
+            font-weight: root.on ? 600 : 400;
+            color: root.on ? Theme.text : Theme.text2;
+            vertical-alignment: center;
+        }
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.toggled(); }
+    }
+}
+
+component StyleCard inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <bool> notch;
+    in property <bool> selected;
+    callback clicked();
+    width: 300px;
+    height: 176px;
+    border-radius: 18px;
+    background: Theme.card;
+    VerticalLayout {
+        padding: 10px;
+        spacing: 9px;
+        Rectangle {
+            height: 100px;
+            border-radius: 12px;
+            clip: true;
+            background: @linear-gradient(110deg, #5238d4 0%, #8b4ef0 38%, #f2527f 72%, #ffb56b 100%);
+            MiniPill {
+                notch: root.notch;
+                tint: Cfg.f.appearance-material == 1 ? #000000 : #0b0b14d6;
+                x: (parent.width - self.width) / 2;
+                y: root.notch ? 0px : 18px;
+            }
+        }
+        HorizontalLayout {
+            padding-left: 4px;
+            padding-right: 4px;
+            VerticalLayout {
+                alignment: center;
+                horizontal-stretch: 1;
+                Text { text: root.title; font-size: 14px; font-weight: 700; color: Theme.text; }
+                Text { text: root.subtitle; font-size: 11.5px; color: Theme.text2; }
+            }
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 22px;
+                    height: 22px;
+                    border-radius: 11px;
+                    background: root.selected ? Theme.blue : transparent;
+                    border-width: root.selected ? 0px : 1.5px;
+                    border-color: #ffffff66;
+                    if root.selected: Glyph { g: "\u{E73E}"; font-size: 11px; color: #ffffff; }
+                }
+            }
+        }
+    }
+    Rectangle {
+        border-radius: 18px;
+        border-width: 2px;
+        border-color: root.selected ? Theme.blue : #ffffff26;
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component InfoCard inherits Rectangle {
+    in property <string> glyph;
+    in property <color> tint;
+    in property <string> title;
+    in property <string> text;
+    width: 190px;
+    height: 170px;
+    border-radius: 18px;
+    background: Theme.card;
+    border-width: 1px;
+    border-color: #ffffff26;
+    VerticalLayout {
+        padding: 14px;
+        spacing: 7px;
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            IconTile { glyph: root.glyph; tint: root.tint; size: 44px; }
+        }
+        Text { text: root.title; font-size: 14px; font-weight: 700; color: Theme.text; horizontal-alignment: center; }
+        Text { text: root.text; font-size: 11.5px; color: Theme.text2; wrap: word-wrap; horizontal-alignment: center; }
+    }
+}
+
+component PermissionRow inherits Rectangle {
+    in property <string> glyph;
+    in property <color> tint;
+    in property <string> title;
+    in property <string> subtitle;
+    height: 72px;
+    border-radius: 16px;
+    background: Theme.card;
+    border-width: 1px;
+    border-color: #ffffff26;
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        spacing: 14px;
+        VerticalLayout {
+            alignment: center;
+            IconTile { glyph: root.glyph; tint: root.tint; size: 38px; }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            horizontal-stretch: 1;
+            Text { text: root.title; font-size: 14px; font-weight: 600; color: Theme.text; }
+            Text { text: root.subtitle; font-size: 11.5px; color: Theme.text2; }
+        }
+        VerticalLayout {
+            alignment: center;
+            @children
+        }
+    }
+}
+
+export component Onboarding inherits Rectangle {
+    background: Theme.window-bg;
+    property <int> last: 5;
+
+    // ------------------------------------------------------------ header
+    HorizontalLayout {
+        y: 0;
+        height: 64px;
+        padding-left: 30px;
+        padding-right: 30px;
+        spacing: 10px;
+        VerticalLayout {
+            alignment: center;
+            Image { source: @image-url("../assets/logo.png"); width: 28px; height: 28px; }
+        }
+        Text { text: "Moku"; font-size: 15px; font-weight: 700; color: Theme.text; vertical-alignment: center; }
+        Rectangle { horizontal-stretch: 1; }
+        Text { text: "Langkah " + (Cfg.step + 1) + " dari 6"; font-size: 11.5px; color: Theme.text3; vertical-alignment: center; }
+    }
+
+    // ------------------------------------------------------------ steps
+    Rectangle {
+        y: 64px;
+        height: root.height - 64px - 88px;
+
+        // 1 Selamat datang
+        if Cfg.step == 0: VerticalLayout {
+            alignment: center;
+            spacing: 14px;
+            HorizontalLayout {
+                alignment: center;
+                Image { source: @image-url("../assets/logo.png"); width: 104px; height: 104px; }
+            }
+            Text { text: "Halo, aku Moku"; font-size: 34px; font-weight: 700; color: Theme.text; horizontal-alignment: center; }
+            HorizontalLayout {
+                alignment: center;
+                Text {
+                    width: 470px;
+                    text: "Island kecil di tepi atas layarmu. Musik, notifikasi, timer, dan lainnya dalam satu tempat, muncul saat perlu dan minggir saat tidak.";
+                    font-size: 14px;
+                    color: Theme.text2;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        // 2 Gaya
+        if Cfg.step == 1: VerticalLayout {
+            alignment: center;
+            spacing: 12px;
+            Text { text: "Pilih gaya island"; font-size: 28px; font-weight: 700; color: Theme.text; horizontal-alignment: center; }
+            Text { text: "Kamu bisa mengubahnya kapan saja di Pengaturan > Island."; font-size: 13px; color: Theme.text2; horizontal-alignment: center; }
+            Rectangle { height: 6px; }
+            HorizontalLayout {
+                alignment: center;
+                spacing: 16px;
+                StyleCard {
+                    title: "Dynamic";
+                    subtitle: "Mengambang di bawah tepi layar";
+                    selected: Cfg.f.island-style == 0;
+                    clicked => { Cfg.f.island-style = 0; Cfg.commit(); }
+                }
+                StyleCard {
+                    title: "Notch";
+                    subtitle: "Menempel ke tepi atas layar";
+                    notch: true;
+                    selected: Cfg.f.island-style == 1;
+                    clicked => { Cfg.f.island-style = 1; Cfg.commit(); }
+                }
+            }
+            Rectangle { height: 4px; }
+            HorizontalLayout {
+                alignment: center;
+                spacing: 12px;
+                Text { text: "Bahan kaca"; font-size: 12.5px; color: Theme.text2; vertical-alignment: center; }
+                Segmented {
+                    options: ["Gelap", "Pekat"];
+                    index: Cfg.f.appearance-material;
+                    selected(i) => { Cfg.f.appearance-material = i; Cfg.commit(); }
+                }
+            }
+        }
+
+        // 3 Fitur
+        if Cfg.step == 2: VerticalLayout {
+            alignment: center;
+            spacing: 12px;
+            Text { text: "Apa yang mau kamu pakai?"; font-size: 28px; font-weight: 700; color: Theme.text; horizontal-alignment: center; }
+            HorizontalLayout {
+                alignment: center;
+                Text {
+                    width: 480px;
+                    text: "Pilih secukupnya. Fitur yang mati tidak memakan memori dan bisa dinyalakan nanti.";
+                    font-size: 13px;
+                    color: Theme.text2;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                }
+            }
+            Rectangle { height: 6px; }
+            HorizontalLayout {
+                alignment: center;
+                spacing: 10px;
+                Chip { text: "Musik & lirik"; on: Cfg.f.media-enabled; toggled => { Cfg.f.media-enabled = !Cfg.f.media-enabled; Cfg.commit(); } }
+                Chip { text: "Notifikasi"; on: Cfg.f.ipc-enabled; toggled => { Cfg.f.ipc-enabled = !Cfg.f.ipc-enabled; Cfg.commit(); } }
+                Chip { text: "Shelf"; on: Cfg.f.shelf-enabled; toggled => { Cfg.f.shelf-enabled = !Cfg.f.shelf-enabled; Cfg.commit(); } }
+                Chip { text: "Clipboard"; on: Cfg.f.clipboard-enabled; toggled => { Cfg.f.clipboard-enabled = !Cfg.f.clipboard-enabled; Cfg.commit(); } }
+                Chip { text: "Tangkap layar"; on: Cfg.f.capture-enabled; toggled => { Cfg.f.capture-enabled = !Cfg.f.capture-enabled; Cfg.commit(); } }
+            }
+            HorizontalLayout {
+                alignment: center;
+                spacing: 10px;
+                Chip { text: "Timer & fokus"; on: Cfg.f.timer-enabled; toggled => { Cfg.f.timer-enabled = !Cfg.f.timer-enabled; Cfg.commit(); } }
+                Chip { text: "Cuaca"; on: Cfg.f.today-weather; toggled => { Cfg.f.today-weather = !Cfg.f.today-weather; Cfg.commit(); } }
+                Chip { text: "Monitor sistem"; on: Cfg.f.monitor-enabled; toggled => { Cfg.f.monitor-enabled = !Cfg.f.monitor-enabled; Cfg.commit(); } }
+                Chip { text: "Izin AI coding"; on: Cfg.f.ipc-ai-cards; toggled => { Cfg.f.ipc-ai-cards = !Cfg.f.ipc-ai-cards; Cfg.commit(); } }
+            }
+            HorizontalLayout {
+                alignment: center;
+                spacing: 10px;
+                Chip { text: "Pengingat minum"; on: Cfg.f.reminders-water; toggled => { Cfg.f.reminders-water = !Cfg.f.reminders-water; Cfg.commit(); } }
+                Chip { text: "Istirahat mata"; on: Cfg.f.reminders-eye; toggled => { Cfg.f.reminders-eye = !Cfg.f.reminders-eye; Cfg.commit(); } }
+                Chip { text: "Jadwal sholat"; on: Cfg.f.prayer-enabled; toggled => { Cfg.f.prayer-enabled = !Cfg.f.prayer-enabled; Cfg.commit(); } }
+            }
+        }
+
+        // 4 Izin
+        if Cfg.step == 3: VerticalLayout {
+            alignment: center;
+            spacing: 12px;
+            Text { text: "Beberapa izin"; font-size: 28px; font-weight: 700; color: Theme.text; horizontal-alignment: center; }
+            HorizontalLayout {
+                alignment: center;
+                Text {
+                    width: 480px;
+                    text: "Moku hanya meminta yang dibutuhkan fitur pilihanmu. Semuanya bisa dicabut kapan saja.";
+                    font-size: 13px;
+                    color: Theme.text2;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                }
+            }
+            Rectangle { height: 6px; }
+            HorizontalLayout {
+                alignment: center;
+                VerticalLayout {
+                    width: 580px;
+                    spacing: 10px;
+                    PermissionRow {
+                        glyph: "\u{E945}";
+                        tint: #f0a02a;
+                        title: "Jalankan saat Windows menyala";
+                        subtitle: "Island langsung siap setiap kali laptop dinyalakan";
+                        Btn {
+                            text: Cfg.autostart-granted ? "Diizinkan" : "Izinkan";
+                            kind: Cfg.autostart-granted ? "normal" : "accent";
+                            clicked => { Cfg.set-autostart(!Cfg.autostart-granted); }
+                        }
+                    }
+                    PermissionRow {
+                        glyph: "\u{E753}";
+                        tint: #2fb99a;
+                        title: "Lokasi (opsional)";
+                        subtitle: "Nama kota untuk cuaca; bisa diisi manual";
+                        Field {
+                            width: 170px;
+                            placeholder: "Jakarta";
+                            text: Cfg.f.today-city;
+                            edited(t) => { Cfg.f.today-city = t; Cfg.commit(); }
+                        }
+                    }
+                }
+            }
+            HorizontalLayout {
+                alignment: center;
+                Text {
+                    width: 580px;
+                    text: "Moku tidak membaca isi layar, tidak memakai akun, dan tidak mengirim data ke mana pun. Koneksi internet hanya untuk cuaca dan lirik, dan hanya saat fiturnya menyala. Tanya AI (opsional) dijelaskan di langkah berikutnya.";
+                    font-size: 11.5px;
+                    color: Theme.text3;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        // 5 Tanya AI (opsional): the privacy note, in Indonesian and English
+        if Cfg.step == 4: VerticalLayout {
+            alignment: center;
+            spacing: 12px;
+            Text { text: "Tanya AI (opsional)"; font-size: 28px; font-weight: 700; color: Theme.text; horizontal-alignment: center; }
+            HorizontalLayout {
+                alignment: center;
+                Text {
+                    width: 560px;
+                    text: "Pilih teks di aplikasi apa pun, lalu terjemahkan, ringkas, atau jelaskan lewat penyedia AI pilihanmu. Mati sampai kamu menyalakannya di Pengaturan > Tanya AI.";
+                    font-size: 13px;
+                    color: Theme.text2;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                }
+            }
+            Rectangle { height: 2px; }
+            HorizontalLayout {
+                alignment: center;
+                PrivacyNote { width: 620px; }
+            }
+        }
+
+        // 6 Siap
+        if Cfg.step == 5: VerticalLayout {
+            alignment: center;
+            spacing: 12px;
+            Text { text: "Semua siap"; font-size: 28px; font-weight: 700; color: Theme.text; horizontal-alignment: center; }
+            Text { text: "Tiga hal yang perlu kamu tahu. Sisanya akan terasa sendiri."; font-size: 13px; color: Theme.text2; horizontal-alignment: center; }
+            Rectangle { height: 6px; }
+            HorizontalLayout {
+                alignment: center;
+                spacing: 14px;
+                InfoCard { glyph: "\u{E7C9}"; tint: #2b8cff; title: "Arahkan kursor"; text: "Dekati island untuk membuka panel"; }
+                InfoCard { glyph: "\u{E767}"; tint: #8e5cf2; title: "Scroll di pil"; text: "Mengatur volume tanpa membuka apa pun"; }
+                InfoCard { glyph: "\u{EC59}"; tint: #ff5a5f; title: "Seret file"; text: "Lepas di island untuk menyimpannya di Shelf"; }
+            }
+            Rectangle { height: 2px; }
+            HorizontalLayout {
+                alignment: center;
+                spacing: 6px;
+                Text { text: "Buka atau tutup panel kapan saja dengan"; font-size: 12px; color: Theme.text2; vertical-alignment: center; }
+                for p in Cfg.hotkey-parts: Kbd { text: p; }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------ footer
+    HorizontalLayout {
+        y: root.height - 88px;
+        height: 88px;
+        padding-left: 30px;
+        padding-right: 30px;
+        padding-bottom: 6px;
+        spacing: 10px;
+        VerticalLayout {
+            alignment: center;
+            HorizontalLayout {
+                spacing: 6px;
+                for i in 6: Rectangle {
+                    width: i == Cfg.step ? 22px : 6px;
+                    height: 6px;
+                    border-radius: 3px;
+                    background: i == Cfg.step ? Theme.blue : #ffffff40;
+                    animate width { duration: 140ms; easing: ease-out; }
+                }
+            }
+        }
+        Rectangle { horizontal-stretch: 1; }
+        if Cfg.step == 3: VerticalLayout {
+            alignment: center;
+            Text {
+                text: "Lewati";
+                font-size: 12.5px;
+                color: Theme.text2;
+                TouchArea { mouse-cursor: pointer; clicked => { Cfg.step = 4; } }
+            }
+        }
+        if Cfg.step > 0: VerticalLayout {
+            alignment: center;
+            Btn { text: "Kembali"; height: 36px; clicked => { Cfg.step = Cfg.step - 1; } }
+        }
+        VerticalLayout {
+            alignment: center;
+            if Cfg.step == 0: Btn { text: "Mulai"; kind: "primary"; height: 36px; clicked => { Cfg.step = 1; } }
+            if Cfg.step > 0 && Cfg.step < 5: Btn { text: "Lanjut"; kind: "primary"; height: 36px; clicked => { Cfg.step = Cfg.step + 1; } }
+            if Cfg.step == 5: Btn { text: "Mulai pakai Moku"; kind: "primary"; height: 36px; clicked => { Cfg.finish-onboarding(); } }
+        }
+    }
+}

@@ -1,0 +1,34 @@
+[package]
+name = "moku-setup"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+description = "Moku per-user installer and uninstaller (moku-setup.exe)"
+build = "build.rs"
+
+[dependencies]
+moku-core.workspace = true
+# Same Slint feature set as moku-settings (software renderer, no GPU backends), so both share
+# one build of Slint.
+slint = { version = "1.19", default-features = false, features = ["std", "backend-winit", "compat-1-2", "renderer-software", "software-renderer-systemfonts", "unstable-winit-030"] }
+
+[dependencies.windows]
+workspace = true
+features = [
+    "Win32_Foundation",
+    "Win32_Security",                    # RegCreateKeyExW signature
+    "Win32_Storage_Compression",         # LZMS payload (Windows Compression API)
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",                  # IShellLinkW + IPersistFile
+    "Win32_System_Diagnostics_ToolHelp", # find running Moku processes
+    "Win32_System_Registry",             # uninstall entry, Run value
+    "Win32_System_Threading",            # OpenProcess, single-instance mutex
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",      # WM_CLOSE to Moku's own windows
+]
+
+[build-dependencies.windows]
+workspace = true
+# The build script compresses the payload (only when MOKU_SETUP_PAYLOAD is set).
+features = ["Win32_Storage_Compression"]

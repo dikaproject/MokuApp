@@ -1,0 +1,232 @@
+import { Cfg } from "cfg.slint";
+import { Theme } from "theme.slint";
+import { Form, Problems } from "form.slint";
+import { Btn, Glyph, Badge } from "widgets.slint";
+import { UmumPage, IslandPage, TampilanPage } from "pages-a.slint";
+import { FiturPage, NotifikasiPage, MokuLinkPage } from "pages-b.slint";
+import { PintasanPage, PluginPage, PrivasiPage, TentangPage } from "pages-c.slint";
+import { Onboarding } from "onboarding.slint";
+export { ClaudeCfg } from "pages-g.slint";
+import { CalendarCfg, CalUrl } from "pages-j.slint";
+import { PowerCfg } from "pages-h.slint";
+import { AiPage, MemoriPage } from "pages-m.slint";
+
+export { Cfg, Theme, Form, Problems, CalendarCfg, CalUrl, PowerCfg }
+export { LauncherCfg } from "pages-k.slint";
+export { PlacementCfg } from "pages-o.slint";
+export { IbadahCfg } from "pages-n.slint";
+export { AgentsCfg, AgentRule, MirrorCfg, MirrorApp } from "pages-q.slint";
+export { TodayCfg } from "pages-p.slint";
+export { OcrCfg } from "pages-l.slint";
+export { AiCfg, AiFact } from "pages-m.slint";
+export { PhoneCfg } from "pages-r.slint";
+
+struct NavEntry { glyph: string, label: string, soon: bool }
+
+component NavItem inherits Rectangle {
+    in property <string> glyph;
+    in property <string> label;
+    in property <bool> selected;
+    in property <bool> soon;
+    callback clicked();
+    height: 36px;
+    border-radius: 10px;
+    background: root.selected ? #ffffff26 : ta.has-hover ? #ffffff10 : transparent;
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 10px;
+        spacing: 10px;
+        Glyph {
+            g: root.glyph;
+            font-size: 14px;
+            width: 18px;
+            color: root.selected ? Theme.text : root.soon ? Theme.text3 : Theme.text2;
+        }
+        Text {
+            text: root.label;
+            font-size: 13px;
+            font-weight: root.selected ? 600 : 400;
+            color: root.selected ? Theme.text : root.soon ? Theme.text3 : Theme.text2;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        if root.soon: Text {
+            text: "segera";
+            font-size: 10px;
+            color: Theme.orange;
+            vertical-alignment: center;
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component Confirm inherits Rectangle {
+    in property <string> title;
+    in property <string> message;
+    in property <string> action;
+    callback accepted();
+    callback cancelled();
+    background: #000000a6;
+    TouchArea { clicked => { root.cancelled(); } }
+    Rectangle {
+        width: 420px;
+        height: dialog.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        background: #1c1a30;
+        border-radius: 18px;
+        border-width: 1px;
+        border-color: #ffffff2e;
+        TouchArea { }
+        dialog := VerticalLayout {
+            padding: 22px;
+            spacing: 10px;
+            Text { text: root.title; font-size: 17px; font-weight: 700; color: Theme.text; wrap: word-wrap; }
+            Text { text: root.message; font-size: 12.5px; color: Theme.text2; wrap: word-wrap; }
+            Rectangle { height: 8px; }
+            HorizontalLayout {
+                alignment: end;
+                spacing: 8px;
+                Btn { text: "Batal"; clicked => { root.cancelled(); } }
+                Btn { text: root.action; kind: "danger"; clicked => { root.accepted(); } }
+            }
+        }
+    }
+}
+
+export component SettingsWindow inherits Window {
+    title: "Moku — Pengaturan";
+    icon: @image-url("../assets/logo.png");
+    default-font-family: Theme.font;
+    min-width: 820px;
+    // 12 sidebar entries (36 px each, 3 px apart) plus the logo and the version line need about 570 px:
+    // 640 leaves room, so the last entry ("Tentang") is never cut off at the smallest window.
+    min-height: 640px;
+    preferred-width: 1000px;
+    preferred-height: 700px;
+    background: #101a36;
+
+    property <[NavEntry]> nav: [
+        { glyph: "\u{E9E9}", label: "Umum" },
+        { glyph: "\u{E7F4}", label: "Island" },
+        { glyph: "\u{E790}", label: "Tampilan" },
+        { glyph: "\u{E71D}", label: "Fitur" },
+        { glyph: "\u{EA8F}", label: "Notifikasi" },
+        { glyph: "\u{E8EA}", label: "Moku Link", soon: true },
+        { glyph: "\u{E765}", label: "Pintasan" },
+        { glyph: "\u{E943}", label: "Plugin" },
+        { glyph: "\u{E72E}", label: "Privasi" },
+        { glyph: "\u{E8BD}", label: "Tanya AI" },
+        { glyph: "\u{E81C}", label: "Memori & Privasi" },
+        { glyph: "\u{E946}", label: "Tentang" },
+    ];
+
+    Rectangle {
+        background: Theme.window-bg;
+    }
+
+    if !Cfg.onboarding: Rectangle {
+        // ---------------------------------------------------------- sidebar
+        Rectangle {
+            x: 0;
+            width: 216px;
+            background: #00000030;
+            Rectangle {
+                x: parent.width - 1px;
+                width: 1px;
+                background: Theme.line;
+            }
+            VerticalLayout {
+                padding: 16px;
+                padding-top: 20px;
+                spacing: 3px;
+                HorizontalLayout {
+                    spacing: 10px;
+                    padding-left: 4px;
+                    padding-bottom: 14px;
+                    VerticalLayout {
+                        alignment: center;
+                        Image { source: @image-url("../assets/logo.png"); width: 30px; height: 30px; }
+                    }
+                    Text { text: "Moku"; font-size: 16px; font-weight: 700; color: Theme.text; vertical-alignment: center; }
+                }
+                for item[i] in root.nav: NavItem {
+                    glyph: item.glyph;
+                    label: item.label;
+                    soon: item.soon;
+                    selected: Cfg.page == i;
+                    clicked => { Cfg.page = i; }
+                }
+                Rectangle { vertical-stretch: 1; }
+                HorizontalLayout {
+                    spacing: 7px;
+                    padding-left: 6px;
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle { width: 7px; height: 7px; border-radius: 3.5px; background: Theme.green; }
+                    }
+                    Text { text: "Moku " + Cfg.version; font-size: 11px; color: Theme.text3; vertical-alignment: center; }
+                }
+            }
+        }
+
+        // ---------------------------------------------------------- pages
+        Rectangle {
+            x: 216px;
+            width: root.width - 216px;
+            for e in [Cfg.epoch]: Rectangle {
+                if Cfg.page == 0: UmumPage { }
+                if Cfg.page == 1: IslandPage { }
+                if Cfg.page == 2: TampilanPage { }
+                if Cfg.page == 3: FiturPage { }
+                if Cfg.page == 4: NotifikasiPage { }
+                if Cfg.page == 5: MokuLinkPage { }
+                if Cfg.page == 6: PintasanPage { }
+                if Cfg.page == 7: PluginPage { }
+                if Cfg.page == 8: PrivasiPage { }
+                if Cfg.page == 9: AiPage { }
+                if Cfg.page == 10: MemoriPage { }
+                if Cfg.page == 11: TentangPage { }
+            }
+        }
+    }
+
+    if Cfg.onboarding: Onboarding { }
+
+    // Saved / error messages.
+    if Cfg.toast != "": Rectangle {
+        width: toast-text.preferred-width + 36px;
+        height: 36px;
+        x: root.width - self.width - 24px;
+        y: root.height - 56px;
+        border-radius: 18px;
+        background: #26243f;
+        border-width: 1px;
+        border-color: #ffffff2e;
+        toast-text := Text {
+            text: Cfg.toast;
+            font-size: 12.5px;
+            color: Theme.text;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+
+    if Cfg.confirm == 1: Confirm {
+        title: "Hapus semua data Moku?";
+        message: "Riwayat clipboard, isi Shelf, to-do, dan log di folder data akan dihapus. Pengaturanmu (config.toml) tetap ada. Tindakan ini tidak bisa dibatalkan.";
+        action: "Hapus semua";
+        cancelled => { Cfg.confirm = 0; }
+        accepted => { Cfg.confirm = 0; Cfg.delete-data(); }
+    }
+    if Cfg.confirm == 2: Confirm {
+        title: "Kembalikan semua pengaturan?";
+        message: "Semua pengaturan kembali ke nilai awal. Data seperti riwayat clipboard dan to-do tidak disentuh.";
+        action: "Kembalikan";
+        cancelled => { Cfg.confirm = 0; }
+        accepted => { Cfg.confirm = 0; Cfg.reset-settings(); }
+    }
+}

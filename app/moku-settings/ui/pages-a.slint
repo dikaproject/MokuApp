@@ -1,0 +1,286 @@
+import { Cfg } from "cfg.slint";
+import { Theme } from "theme.slint";
+import { Page, Card, Setting, ToggleSetting, Toggle, Segmented, SectionLabel, Btn, Field, Slide, Stepper, Glyph, MiniPill } from "widgets.slint";
+import { PlacementSettings, MonitorSettings } from "pages-o.slint";
+
+// ---------------------------------------------------------------- Umum
+
+export component UmumPage inherits Page {
+    title: "Umum";
+    subtitle: "Hal dasar: mulai otomatis, bahasa, dan lokasi data.";
+
+    SectionLabel { text: "MULAI & BAHASA"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Jalankan saat Windows menyala";
+            subtitle: "Island langsung siap setiap kali laptop dinyalakan";
+            checked: Cfg.f.general-autostart;
+            toggled(v) => { Cfg.set-autostart(v); }
+        }
+        Setting {
+            title: "Bahasa island";
+            subtitle: "Bahasa teks di island dan panelnya. Jendela Pengaturan ini memakai Bahasa Indonesia.";
+            Segmented {
+                options: ["Indonesia", "English"];
+                index: Cfg.f.general-language;
+                selected(i) => { Cfg.f.general-language = i; Cfg.commit(); }
+            }
+        }
+    }
+
+    SectionLabel { text: "DATA"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Folder data";
+            subtitle: Cfg.data-dir;
+            Btn { text: "Buka"; clicked => { Cfg.open-data-folder(); } }
+        }
+        Setting {
+            title: "Berkas pengaturan";
+            subtitle: Cfg.config-path;
+        }
+    }
+
+    Rectangle { height: 8px; }
+    HorizontalLayout {
+        alignment: start;
+        spacing: 8px;
+        Btn { text: "Ulangi pengenalan"; clicked => { Cfg.start-onboarding(); } }
+        Btn { text: "Reset ke awal"; kind: "danger"; clicked => { Cfg.confirm = 2; } }
+    }
+}
+
+// ---------------------------------------------------------------- Island
+
+component IslandPreview inherits Rectangle {
+    height: 128px;
+    border-radius: 14px;
+    clip: true;
+    background: @linear-gradient(110deg, #5238d4 0%, #8b4ef0 38%, #f2527f 72%, #ffb56b 100%);
+    MiniPill {
+        k: Cfg.f.island-scale / 100.0;
+        notch: Cfg.f.island-style == 1;
+        tint: Cfg.f.appearance-material == 1 ? #000000 : #0b0b14d6;
+        x: (root.width - self.width) / 2;
+        y: Cfg.f.island-style == 1 ? 0px : 20px;
+        animate y { duration: 140ms; easing: ease-out; }
+    }
+    Text {
+        y: root.height - 30px;
+        width: root.width;
+        text: "Pratinjau langsung";
+        font-size: 11.5px;
+        color: #ffffffb3;
+        horizontal-alignment: center;
+    }
+}
+
+export component IslandPage inherits Page {
+    title: "Island";
+    subtitle: "Bentuk, ukuran, dan cara island bereaksi.";
+
+    IslandPreview { }
+
+    SectionLabel { text: "BENTUK"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Gaya";
+            subtitle: "Dynamic mengambang, Notch menempel ke tepi layar";
+            Segmented {
+                options: ["Dynamic", "Notch"];
+                index: Cfg.f.island-style;
+                selected(i) => { Cfg.f.island-style = i; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Ukuran";
+            Slide {
+                minimum: 75;
+                maximum: 130;
+                step: 5;
+                value: Cfg.f.island-scale;
+                edited(v) => { Cfg.f.island-scale = Math.round(v); Cfg.commit(); }
+            }
+            Text {
+                text: Cfg.f.island-scale + "%";
+                font-size: 12px;
+                color: Theme.text2;
+                min-width: 40px;
+                horizontal-alignment: right;
+                vertical-alignment: center;
+            }
+        }
+        MonitorSettings { }
+    }
+
+    SectionLabel { text: "PERILAKU"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Buka panel saat";
+            Segmented {
+                options: ["Kursor mendekat", "Klik"];
+                index: Cfg.f.island-open-on;
+                selected(i) => { Cfg.f.island-open-on = i; Cfg.commit(); }
+            }
+        }
+        if Cfg.f.island-open-on == 0: Setting {
+            title: "Jeda sebelum panel terbuka";
+            subtitle: "Berapa lama kursor diam di island";
+            Stepper {
+                minimum: 0;
+                maximum: 3000;
+                step: 100;
+                suffix: " ms";
+                value: Cfg.f.island-hover-delay;
+                edited(v) => { Cfg.f.island-hover-delay = v; Cfg.commit(); }
+            }
+        }
+        ToggleSetting {
+            title: "Sembunyikan saat layar penuh";
+            subtitle: "Island minggir saat menonton video atau bermain game";
+            checked: Cfg.f.island-hide-fullscreen;
+            toggled(v) => { Cfg.f.island-hide-fullscreen = v; Cfg.commit(); }
+        }
+        ToggleSetting {
+            title: "Sembunyikan isi notifikasi saat berbagi layar";
+            checked: Cfg.f.privacy-hide-body;
+            toggled(v) => { Cfg.f.privacy-hide-body = v; Cfg.commit(); }
+        }
+    }
+
+    // Monitor, letak, minggir, sembunyi, dan daftar aplikasi (v0.3, track O).
+    PlacementSettings { }
+}
+
+// ---------------------------------------------------------------- Tampilan
+
+component MaterialCard inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    in property <color> tint;
+    callback clicked();
+    width: 172px;
+    height: 108px;
+    VerticalLayout {
+        spacing: 7px;
+        Rectangle {
+            height: 82px;
+            border-radius: 14px;
+            clip: true;
+            background: @linear-gradient(120deg, #3a78e8 0%, #6a4cd8 45%, #f2527f 80%, #ff9f6b 100%);
+            MiniPill {
+                tint: root.tint;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+            }
+            Rectangle {
+                visible: root.selected;
+                border-radius: 14px;
+                border-width: 2px;
+                border-color: Theme.accent;
+            }
+        }
+        Text {
+            text: root.label;
+            font-size: 12px;
+            font-weight: root.selected ? 700 : 400;
+            color: root.selected ? Theme.text : Theme.text2;
+            horizontal-alignment: center;
+        }
+    }
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+struct Swatch { hex: string, c: color }
+
+export component TampilanPage inherits Page {
+    title: "Tampilan";
+    subtitle: "Bahan kaca, warna aksen, dan gerak.";
+    property <[Swatch]> swatches: [
+        { hex: "#0A84FF", c: #0A84FF },
+        { hex: "#BF5AF2", c: #BF5AF2 },
+        { hex: "#FF375F", c: #FF375F },
+        { hex: "#FF453A", c: #FF453A },
+        { hex: "#FF9F0A", c: #FF9F0A },
+        { hex: "#FFD60A", c: #FFD60A },
+        { hex: "#30D158", c: #30D158 },
+        { hex: "#63E6BE", c: #63E6BE },
+    ];
+
+    SectionLabel { text: "BAHAN KACA"; }
+    HorizontalLayout {
+        spacing: 14px;
+        MaterialCard {
+            label: "Kaca gelap";
+            tint: #0b0b14d6;
+            selected: Cfg.f.appearance-material == 0;
+            clicked => { Cfg.f.appearance-material = 0; Cfg.commit(); }
+        }
+        MaterialCard {
+            label: "Hitam pekat";
+            tint: #000000;
+            selected: Cfg.f.appearance-material == 1;
+            clicked => { Cfg.f.appearance-material = 1; Cfg.commit(); }
+        }
+        Rectangle { horizontal-stretch: 2; }
+    }
+
+    SectionLabel { text: "WARNA"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Warna aksen";
+            for s in root.swatches: Rectangle {
+                width: 24px;
+                height: 24px;
+                border-radius: 12px;
+                background: s.c;
+                border-width: Cfg.f.appearance-accent.to-uppercase() == s.hex ? 2px : 0px;
+                border-color: #ffffff;
+                if Cfg.f.appearance-accent.to-uppercase() == s.hex: Glyph { g: "\u{E73E}"; font-size: 11px; color: #ffffff; }
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { Cfg.f.appearance-accent = s.hex; Cfg.commit(); }
+                }
+            }
+        }
+        Setting {
+            title: "Kode warna";
+            subtitle: Cfg.problems.accent != "" ? Cfg.problems.accent : "Format #RRGGBB";
+            Field {
+                width: 110px;
+                mono: true;
+                text: Cfg.f.appearance-accent;
+                invalid: Cfg.problems.accent != "";
+                edited(t) => { Cfg.f.appearance-accent = t; Cfg.commit(); }
+            }
+        }
+        ToggleSetting {
+            title: "Ikuti warna sampul lagu";
+            subtitle: "Aksen berubah mengikuti musik yang sedang diputar";
+            checked: Cfg.f.appearance-follow-album;
+            toggled(v) => { Cfg.f.appearance-follow-album = v; Cfg.commit(); }
+        }
+    }
+
+    SectionLabel { text: "GERAK"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Gerak";
+            subtitle: "Kurangi: tanpa memantul dan lebih singkat, isi memudar. Mati: tanpa gerak sama sekali. Kalau efek animasi Windows mati, island juga diam.";
+            Segmented {
+                options: ["Normal", "Kurangi", "Mati"];
+                index: Cfg.f.appearance-animations;
+                selected(i) => { Cfg.f.appearance-animations = i; Cfg.commit(); }
+            }
+        }
+    }
+}

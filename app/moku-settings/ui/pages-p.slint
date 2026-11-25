@@ -1,0 +1,139 @@
+// Track P (v0.3): the Hari ini extras, shown on the Fitur page after the calendar: holidays, BMKG
+// alerts, the exchange rate and the air quality. Not part of `Form`: this file has its own bridge
+// (`TodayCfg`) and src/today_page.rs reads / writes `[today].holidays`, `[bmkg]` and `[glance]` of
+// config.toml with a read-modify-write, like every other save.
+import { Theme } from "theme.slint";
+import { Card, Setting, ToggleSetting, Stepper, Field, SectionLabel } from "widgets.slint";
+
+export global TodayCfg {
+    in-out property <bool> holidays;
+    in-out property <bool> quake;
+    in-out property <int> radius-km: 300;
+    in-out property <int> big-magnitude: 6;
+    in-out property <bool> nowcast;
+    in-out property <string> province;
+    // What Rust understood of the province (or of the city when it is empty), and whether the typed one is unknown.
+    in property <string> province-note;
+    in property <bool> province-bad;
+    in-out property <bool> rate;
+    in-out property <string> base: "USD";
+    in-out property <string> quote: "IDR";
+    // Why the typed currency pair is not used ("" = fine).
+    in property <string> pair-problem;
+    in-out property <bool> aqi;
+    in-out property <bool> aqi-alert: true;
+
+    // The section was (re)built, e.g. after "Reset ke awal": Rust fills the values from config.toml.
+    callback reload();
+    // Something changed: Rust checks it and saves (debounced while typing).
+    callback changed();
+}
+
+export component PSettings inherits VerticalLayout {
+    spacing: 8px;
+    init => { TodayCfg.reload(); }
+
+    SectionLabel { text: "LIBUR NASIONAL"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Libur nasional dan cuti bersama";
+            subtitle: "Dari kalender libur publik Google untuk Indonesia, tanpa akun. Tampil di Hari ini, dengan pil \"Besok libur\" sore sebelumnya. Menyala sendiri bila bahasa Windows-mu Indonesia.";
+            checked: TodayCfg.holidays;
+            toggled(v) => { TodayCfg.holidays = v; TodayCfg.changed(); }
+        }
+    }
+
+    SectionLabel { text: "GEMPA DAN PERINGATAN CUACA (BMKG)"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Peringatan gempa";
+            subtitle: "Dari BMKG tiap 2 menit saat menyala. Pil muncul untuk gempa dekat kotamu atau gempa besar di mana pun di Indonesia, dengan potensi tsunami. Sumber: BMKG.";
+            checked: TodayCfg.quake;
+            toggled(v) => { TodayCfg.quake = v; TodayCfg.changed(); }
+        }
+        Setting {
+            title: "Jarak dari kota";
+            subtitle: "Gempa yang lebih dekat dari ini memunculkan pil";
+            Stepper {
+                minimum: 50; maximum: 3000; step: 50; suffix: " km";
+                value: TodayCfg.radius-km;
+                edited(v) => { TodayCfg.radius-km = v; TodayCfg.changed(); }
+            }
+        }
+        Setting {
+            title: "Gempa besar di mana pun";
+            subtitle: "Magnitudo ini ke atas selalu memunculkan pil";
+            Stepper {
+                minimum: 4; maximum: 9; step: 1; suffix: " M";
+                value: TodayCfg.big-magnitude;
+                edited(v) => { TodayCfg.big-magnitude = v; TodayCfg.changed(); }
+            }
+        }
+        ToggleSetting {
+            title: "Peringatan dini cuaca";
+            subtitle: "Dari BMKG tiap 10 menit saat menyala, untuk provinsimu (hujan lebat, petir, angin kencang)";
+            checked: TodayCfg.nowcast;
+            toggled(v) => { TodayCfg.nowcast = v; TodayCfg.changed(); }
+        }
+        Setting {
+            title: "Provinsi";
+            subtitle: TodayCfg.province-bad ? "Provinsi ini tidak dikenali" : TodayCfg.province-note;
+            Field {
+                width: 200px;
+                placeholder: "Otomatis dari kota";
+                text: TodayCfg.province;
+                invalid: TodayCfg.province-bad;
+                edited(t) => { TodayCfg.province = t; TodayCfg.changed(); }
+            }
+        }
+    }
+
+    SectionLabel { text: "NILAI TUKAR DAN KUALITAS UDARA"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Nilai tukar";
+            subtitle: "Chip di Hari ini, dari Frankfurter (kurs Bank Sentral Eropa) tiap 6 jam saat menyala";
+            checked: TodayCfg.rate;
+            toggled(v) => { TodayCfg.rate = v; TodayCfg.changed(); }
+        }
+        Setting {
+            title: "Pasangan mata uang";
+            subtitle: TodayCfg.pair-problem != "" ? TodayCfg.pair-problem : "Kode 3 huruf, mis. USD dan IDR: 1 USD berapa IDR";
+            Field {
+                width: 64px;
+                mono: true;
+                text: TodayCfg.base;
+                invalid: TodayCfg.pair-problem != "";
+                edited(t) => { TodayCfg.base = t; TodayCfg.changed(); }
+            }
+            Text {
+                text: "\u{2192}";
+                font-size: 14px;
+                color: Theme.text3;
+                vertical-alignment: center;
+            }
+            Field {
+                width: 64px;
+                mono: true;
+                text: TodayCfg.quote;
+                invalid: TodayCfg.pair-problem != "";
+                edited(t) => { TodayCfg.quote = t; TodayCfg.changed(); }
+            }
+        }
+        ToggleSetting {
+            title: "Kualitas udara (AQI)";
+            subtitle: "Chip di Hari ini, dari Open-Meteo untuk kota di Hari ini, tiap jam saat menyala";
+            checked: TodayCfg.aqi;
+            toggled(v) => { TodayCfg.aqi = v; TodayCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Ingatkan saat udara tidak sehat";
+            subtitle: "Pil saat AQI di atas 150, sekali dalam 12 jam";
+            checked: TodayCfg.aqi-alert;
+            toggled(v) => { TodayCfg.aqi-alert = v; TodayCfg.changed(); }
+        }
+    }
+}

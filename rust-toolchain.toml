@@ -1,0 +1,5 @@
+# The Rust version Moku is built and tested with (the same one CI installs). Bump it on purpose,
+# in its own commit, after a clean `cargo test --workspace` and `cargo build --release --workspace`.
+[toolchain]
+channel = "1.100.0"
+profile = "minimal"

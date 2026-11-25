@@ -1,0 +1,40 @@
+import { Form, Problems } from "form.slint";
+
+// The bridge to Rust: the form values, navigation state and the actions Rust implements.
+export global Cfg {
+    in-out property <Form> f;
+    in-out property <Problems> problems;
+
+    // Navigation: 0 Umum .. 9 Tentang.
+    in-out property <int> page: 0;
+    // Bumped to rebuild the pages (after "Reset ke awal"), so text fields pick up new values.
+    in-out property <int> epoch: 0;
+    // Onboarding takes over the whole window.
+    in-out property <bool> onboarding: false;
+    in-out property <int> step: 0;
+    // Pending confirmation dialog: 0 none, 1 delete all data, 2 reset settings.
+    in-out property <int> confirm: 0;
+    in-out property <string> toast;
+
+    // Info from Rust.
+    in property <string> version;
+    in property <string> data-dir;
+    in property <string> config-path;
+    in property <string> doc-path;
+    in property <bool> doc-found;
+    // The toggle hotkey split into keys, for the "Siap" step ("Alt", "M").
+    in property <[string]> hotkey-parts;
+    // Onboarding "Izin" step: was autostart granted?
+    in-out property <bool> autostart-granted;
+
+    // Called after any edit of f; Rust validates, debounces (300 ms) and saves.
+    callback commit();
+    // Autostart is a registry value as well as a setting: Rust does both.
+    callback set-autostart(bool);
+    callback delete-data();
+    callback reset-settings();
+    callback open-data-folder();
+    callback open-doc();
+    callback finish-onboarding();
+    callback start-onboarding();
+}

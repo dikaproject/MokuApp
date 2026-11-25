@@ -1,0 +1,219 @@
+// Ibadah: calculation method, Hijri date, Ramadan, puasa sunnah and adzan sound (v0.3, track N).
+// Shown on the "Fitur" page right under "Jadwal sholat". Its own bridge (`IbadahCfg`):
+// src/ibadah_page.rs reads / writes `[ibadah]` and `prayer.method` of config.toml directly
+// (read-modify-write), so the shared Form stays untouched.
+import { Theme } from "theme.slint";
+import { Card, Setting, ToggleSetting, Segmented, Field, Btn, Stepper, SectionLabel } from "widgets.slint";
+
+export global IbadahCfg {
+    // prayer.method: 0 Kemenag, 1 JAKIM
+    in-out property <int> method: 0;
+    in-out property <bool> hijri: true;
+    in-out property <int> hijri-offset: 0;
+    in-out property <bool> ramadan: true;
+    // 0 all day, 1 last 30 minutes, 2 off
+    in-out property <int> pill-mode: 0;
+    in-out property <int> imsak-minutes: 10;
+    in-out property <bool> sunnah-mt: false;
+    in-out property <bool> sunnah-bidh: false;
+    in-out property <bool> sunnah-arafah: false;
+    in-out property <bool> sunnah-asyura: false;
+    in-out property <int> sunnah-hour: 20;
+    in-out property <bool> adzan: false;
+    in-out property <bool> adzan-fajr: true;
+    in-out property <bool> adzan-dhuhr: true;
+    in-out property <bool> adzan-asr: true;
+    in-out property <bool> adzan-maghrib: true;
+    in-out property <bool> adzan-isha: true;
+    // 0 chime, 1 own file
+    in-out property <int> sound: 0;
+    in-out property <string> file;
+    // Why the chosen file will not be used (empty = fine, or the chime is chosen).
+    in property <string> file-problem;
+    in-out property <int> volume: 40;
+    in-out property <bool> pause-media: true;
+
+    // Rust re-reads config.toml (called when the section is built, so "Reset ke awal" shows).
+    callback reload();
+    // Any control changed: Rust validates, debounces and saves.
+    callback changed();
+    // Opens the file dialog; Rust fills `file`.
+    callback pick-file();
+}
+
+export component IbadahSettings inherits VerticalLayout {
+    spacing: 8px;
+    init => { IbadahCfg.reload(); }
+
+    SectionLabel { text: "METODE PERHITUNGAN"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Metode jadwal sholat";
+            subtitle: "Kemenag RI: Subuh 20°, Isya 18°. JAKIM Malaysia: Subuh 18°, Isya 18°. Atur kota dan koordinat di atas.";
+            Segmented {
+                options: ["Kemenag", "JAKIM"];
+                index: IbadahCfg.method;
+                selected(i) => { IbadahCfg.method = i; IbadahCfg.changed(); }
+            }
+        }
+    }
+
+    SectionLabel { text: "TANGGAL HIJRIAH & RAMADAN"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Tanggal Hijriah";
+            subtitle: "Di tab Hari ini dan Sehat. Memakai bulan-bulan yang diterbitkan Kemenag (1 Muharram 1447 sampai 1448 H); di luar itu memakai kalender tabular yang bisa selisih sehari.";
+            checked: IbadahCfg.hijri;
+            toggled(v) => { IbadahCfg.hijri = v; IbadahCfg.changed(); }
+        }
+        Setting {
+            title: "Koreksi tanggal";
+            subtitle: "Untuk daerah atau ormas yang memulai bulan di hari lain, dari −2 sampai +2 hari. Ditambahkan di atas tanggal Kemenag";
+            Stepper {
+                minimum: -2; maximum: 2; step: 1; suffix: " hari";
+                value: IbadahCfg.hijri-offset;
+                edited(v) => { IbadahCfg.hijri-offset = v; IbadahCfg.changed(); }
+            }
+        }
+        ToggleSetting {
+            title: "Mode Ramadan otomatis";
+            subtitle: "Di bulan Ramadan: hitung mundur imsak dan buka puasa, serta \"Selamat berbuka\" saat Maghrib. Perlu Jadwal sholat menyala.";
+            checked: IbadahCfg.ramadan;
+            toggled(v) => { IbadahCfg.ramadan = v; IbadahCfg.changed(); }
+        }
+        Setting {
+            title: "Pil hitung mundur";
+            subtitle: "Cincin yang terisi sampai Maghrib. Di 30 menit terakhir pil jadi lebih menonjol.";
+            Segmented {
+                options: ["Seharian", "30 menit terakhir", "Mati"];
+                index: IbadahCfg.pill-mode;
+                selected(i) => { IbadahCfg.pill-mode = i; IbadahCfg.changed(); }
+            }
+        }
+        Setting {
+            title: "Imsak sebelum Subuh";
+            subtitle: "0 berarti puasa dimulai tepat saat Subuh";
+            Stepper {
+                minimum: 0; maximum: 30; step: 1; suffix: " menit";
+                value: IbadahCfg.imsak-minutes;
+                edited(v) => { IbadahCfg.imsak-minutes = v; IbadahCfg.changed(); }
+            }
+        }
+    }
+
+    SectionLabel { text: "PUASA SUNNAH"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Senin dan Kamis";
+            subtitle: "Pengingat malam sebelumnya";
+            checked: IbadahCfg.sunnah-mt;
+            toggled(v) => { IbadahCfg.sunnah-mt = v; IbadahCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Ayyamul Bidh";
+            subtitle: "Tanggal 13, 14, dan 15 tiap bulan Hijriah";
+            checked: IbadahCfg.sunnah-bidh;
+            toggled(v) => { IbadahCfg.sunnah-bidh = v; IbadahCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Arafah";
+            subtitle: "9 Dzulhijjah";
+            checked: IbadahCfg.sunnah-arafah;
+            toggled(v) => { IbadahCfg.sunnah-arafah = v; IbadahCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Tasu'a dan Asyura";
+            subtitle: "9 dan 10 Muharram";
+            checked: IbadahCfg.sunnah-asyura;
+            toggled(v) => { IbadahCfg.sunnah-asyura = v; IbadahCfg.changed(); }
+        }
+        Setting {
+            title: "Waktu pengingat";
+            subtitle: "Tidak ada pengingat di bulan Ramadan, hari raya, dan hari tasyrik";
+            Stepper {
+                minimum: 12; maximum: 23; step: 1; suffix: ".00";
+                value: IbadahCfg.sunnah-hour;
+                edited(v) => { IbadahCfg.sunnah-hour = v; IbadahCfg.changed(); }
+            }
+        }
+    }
+
+    SectionLabel { text: "ADZAN"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Suara saat waktu sholat";
+            subtitle: "Musik atau video yang sedang jalan dijeda dulu dan dilanjutkan sesudahnya. Tidak berbunyi saat rapat. Perlu Jadwal sholat menyala.";
+            checked: IbadahCfg.adzan;
+            toggled(v) => { IbadahCfg.adzan = v; IbadahCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Subuh";
+            checked: IbadahCfg.adzan-fajr;
+            toggled(v) => { IbadahCfg.adzan-fajr = v; IbadahCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Dzuhur";
+            checked: IbadahCfg.adzan-dhuhr;
+            toggled(v) => { IbadahCfg.adzan-dhuhr = v; IbadahCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Ashar";
+            checked: IbadahCfg.adzan-asr;
+            toggled(v) => { IbadahCfg.adzan-asr = v; IbadahCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Maghrib";
+            checked: IbadahCfg.adzan-maghrib;
+            toggled(v) => { IbadahCfg.adzan-maghrib = v; IbadahCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "Isya";
+            checked: IbadahCfg.adzan-isha;
+            toggled(v) => { IbadahCfg.adzan-isha = v; IbadahCfg.changed(); }
+        }
+        Setting {
+            title: "Suara";
+            subtitle: "Moku tidak menyertakan rekaman adzan. Bawaannya lonceng lembut buatan sendiri; kamu bisa memilih file milikmu.";
+            Segmented {
+                options: ["Lonceng lembut", "File sendiri"];
+                index: IbadahCfg.sound;
+                selected(i) => { IbadahCfg.sound = i; IbadahCfg.changed(); }
+            }
+        }
+        if IbadahCfg.sound == 1: Setting {
+            title: "File suara";
+            subtitle: IbadahCfg.file-problem != "" ? IbadahCfg.file-problem : "wav, mp3, m4a, aac, wma, atau flac (maksimal 50 MB)";
+            Field {
+                width: 230px;
+                placeholder: "C:\\...\\adzan.mp3";
+                text: IbadahCfg.file;
+                invalid: IbadahCfg.file-problem != "";
+                edited(t) => { IbadahCfg.file = t; IbadahCfg.changed(); }
+            }
+            Btn {
+                text: "Pilih…";
+                width: 84px;
+                clicked => { IbadahCfg.pick-file(); }
+            }
+        }
+        Setting {
+            title: "Volume";
+            subtitle: "Persen dari volume pemutar, di luar volume Windows";
+            Stepper {
+                minimum: 5; maximum: 100; step: 5; suffix: " %";
+                value: IbadahCfg.volume;
+                edited(v) => { IbadahCfg.volume = v; IbadahCfg.changed(); }
+            }
+        }
+        ToggleSetting {
+            title: "Jeda media saat adzan";
+            subtitle: "Hanya yang sedang diputar dan dijeda oleh Moku yang dilanjutkan lagi";
+            checked: IbadahCfg.pause-media;
+            toggled(v) => { IbadahCfg.pause-media = v; IbadahCfg.changed(); }
+        }
+    }
+}

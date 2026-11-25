@@ -1,0 +1,125 @@
+// Kalender (alamat iCal) dan pil unduhan: controls added by v0.2 track J, shown at the bottom of
+// the "Fitur" page. They are not part of `Form`: this file has its own bridge (`CalendarCfg`) and
+// src/calendar_page.rs reads / writes `[calendar]` and `[downloads]` of config.toml directly
+// (read-modify-write, like every other save).
+import { Theme } from "theme.slint";
+import { Card, Setting, ToggleSetting, Field, Btn, Stepper, SectionLabel, Glyph } from "widgets.slint";
+
+// One saved address, already masked by Rust: the real address never reaches the UI.
+export struct CalUrl { masked: string }
+
+export global CalendarCfg {
+    in-out property <bool> enabled;
+    in-out property <int> minutes-before: 5;
+    in-out property <[CalUrl]> urls;
+    // Why the last address could not be added ("" = fine).
+    in-out property <string> problem;
+    in-out property <bool> downloads-enabled: true;
+
+    // Rust re-reads config.toml (called when the page is built, so "Reset ke awal" shows).
+    callback reload();
+    callback set-enabled(bool);
+    callback set-minutes(int);
+    // Returns true when the address was saved (the field is cleared then).
+    callback add-url(string) -> bool;
+    callback remove-url(int);
+    callback set-downloads(bool);
+}
+
+component UrlRow inherits Rectangle {
+    in property <string> masked;
+    callback removed();
+    min-height: 44px;
+    Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.line;
+    }
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 14px;
+        padding-top: 7px;
+        padding-bottom: 7px;
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            Glyph { g: "\u{E71B}"; font-size: 14px; width: 18px; color: Theme.text3; }
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            Text {
+                text: root.masked;
+                font-family: "Consolas";
+                font-size: 12px;
+                color: Theme.text2;
+                overflow: elide;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            Btn { text: "Hapus"; kind: "danger"; clicked => { root.removed(); } }
+        }
+    }
+}
+
+export component JSettings inherits VerticalLayout {
+    spacing: 8px;
+    init => { CalendarCfg.reload(); }
+
+    SectionLabel { text: "KALENDER"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Agenda dan pengingat rapat";
+            subtitle: "Dari alamat iCal (.ics) di bawah, tanpa akun dan tanpa OAuth. Diambil tiap 15 menit, hanya saat menyala.";
+            checked: CalendarCfg.enabled;
+            toggled(v) => { CalendarCfg.set-enabled(v); }
+        }
+        Setting {
+            title: "Ingatkan sebelum rapat";
+            subtitle: "Pil muncul dengan tombol Gabung untuk tautan Meet, Zoom, atau Teams";
+            Stepper {
+                minimum: 1; maximum: 60; step: 1; suffix: " menit";
+                value: CalendarCfg.minutes-before;
+                edited(v) => { CalendarCfg.set-minutes(v); }
+            }
+        }
+        for u[i] in CalendarCfg.urls: UrlRow {
+            masked: u.masked;
+            removed => { CalendarCfg.remove-url(i); }
+        }
+        Setting {
+            title: "Tambah alamat kalender";
+            subtitle: CalendarCfg.problem != "" ? CalendarCfg.problem
+                : "Google: Setelan kalender, Alamat rahasia dalam format iCal. Outlook: Publikasikan kalender, tautan ICS. Alamat ini rahasia: setelah ditambahkan hanya tampil tersamar.";
+            adder := Field {
+                width: 220px;
+                placeholder: "https:// atau webcal://";
+                invalid: CalendarCfg.problem != "";
+                edited(t) => { CalendarCfg.problem = ""; }
+            }
+            Btn {
+                text: "Tambah";
+                kind: "accent";
+                width: 92px;
+                clicked => {
+                    if (CalendarCfg.add-url(adder.text)) {
+                        adder.text = "";
+                    }
+                }
+            }
+        }
+    }
+
+    SectionLabel { text: "UNDUHAN"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Pil progres unduhan";
+            subtitle: "Memantau nama file di folder Unduhan (.crdownload, .part). Isi file tidak pernah dibaca.";
+            checked: CalendarCfg.downloads-enabled;
+            toggled(v) => { CalendarCfg.set-downloads(v); }
+        }
+    }
+}

@@ -1,0 +1,50 @@
+import { Theme } from "theme.slint";
+import { Card, Setting, ToggleSetting, SectionLabel, Field } from "widgets.slint";
+
+// Track K: the launcher's settings. Its own global (src/launcher_page.rs saves `[launcher]`
+// with a read-modify-write of config.toml), so the shared Form stays untouched.
+export global LauncherCfg {
+    in-out property <bool> enabled: true;
+    in-out property <string> hotkey: "Alt+Space";
+    in-out property <bool> store-apps: true;
+    in-out property <bool> shelf-files: true;
+    // Why the typed hotkey is not used (empty = fine).
+    in property <string> problem;
+    callback changed();
+}
+
+// Placed on the Pintasan page.
+export component LauncherSettings inherits VerticalLayout {
+    SectionLabel { text: "PELUNCUR"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Peluncur";
+            subtitle: "Cari aplikasi, hitung, tambah to-do, dan mulai timer dari island";
+            checked: LauncherCfg.enabled;
+            toggled(v) => { LauncherCfg.enabled = v; LauncherCfg.changed(); }
+        }
+        Setting {
+            title: "Buka peluncur";
+            subtitle: LauncherCfg.problem != "" ? LauncherCfg.problem : "Bawaan Alt+Space. Kalau dipakai aplikasi lain, island memberi tahu";
+            Field {
+                width: 200px;
+                text: LauncherCfg.hotkey;
+                invalid: LauncherCfg.problem != "";
+                edited(t) => { LauncherCfg.hotkey = t; LauncherCfg.changed(); }
+            }
+        }
+        ToggleSetting {
+            title: "Aplikasi Microsoft Store";
+            subtitle: "Ikut cari aplikasi dari Store, bukan hanya pintasan Start";
+            checked: LauncherCfg.store-apps;
+            toggled(v) => { LauncherCfg.store-apps = v; LauncherCfg.changed(); }
+        }
+        ToggleSetting {
+            title: "File di Shelf";
+            subtitle: "Tampilkan file yang terakhir ditaruh di Shelf";
+            checked: LauncherCfg.shelf-files;
+            toggled(v) => { LauncherCfg.shelf-files = v; LauncherCfg.changed(); }
+        }
+    }
+}

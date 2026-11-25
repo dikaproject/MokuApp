@@ -1,0 +1,46 @@
+import { Card, Setting, ToggleSetting, SectionLabel, Stepper } from "widgets.slint";
+
+// v0.2 track G: Claude Code live status, the `[claude]` section of config.toml.
+// Rust side: src/claude.rs (reads the section when this block is shown, saves on every change).
+export global ClaudeCfg {
+    in-out property <bool> enabled: true;
+    in-out property <bool> done-pill: true;
+    in-out property <int> stale-minutes: 30;
+    // Rust: read `[claude]` from config.toml into the properties above.
+    callback load();
+    // Rust: write the properties above to `[claude]` (read-modify-write of the file).
+    callback save();
+}
+
+// Placed in the Notifikasi page.
+export component ClaudeSection inherits VerticalLayout {
+    spacing: 8px;
+    init => { ClaudeCfg.load(); }
+
+    SectionLabel { text: "CLAUDE CODE"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Status sesi Claude Code";
+            subtitle: "Pil \"Bekerja…\", \"Butuh input\" dan \"Selesai\" per sesi. Perlu hook Claude Code (docs/claude-code-hook.md)";
+            checked: ClaudeCfg.enabled;
+            toggled(v) => { ClaudeCfg.enabled = v; ClaudeCfg.save(); }
+        }
+        ToggleSetting {
+            title: "Kabar saat selesai";
+            subtitle: "Pil singkat \"Selesai · 3m 12s\" ketika Claude selesai menjawab";
+            enabled: ClaudeCfg.enabled;
+            checked: ClaudeCfg.done-pill;
+            toggled(v) => { ClaudeCfg.done-pill = v; ClaudeCfg.save(); }
+        }
+        Setting {
+            title: "Lupakan sesi yang diam";
+            subtitle: "Sesi tanpa kabar selama ini hilang dari island";
+            Stepper {
+                minimum: 5; maximum: 1440; step: 5; suffix: " menit";
+                value: ClaudeCfg.stale-minutes;
+                edited(v) => { ClaudeCfg.stale-minutes = v; ClaudeCfg.save(); }
+            }
+        }
+    }
+}

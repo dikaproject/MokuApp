@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Identity package of Moku ("sparse package" / packaging with external location): it contains no
+  files of Moku, only this manifest, and gives moku.exe a package identity when it is registered
+  with the install folder as its external location. Windows only gives some APIs to a process
+  with an identity, among them the notification listener (capability userNotificationListener).
+
+  Built by `app\tools\release.ps1 -SparsePackage` (the @TOKENS@ are filled in there). Nothing in
+  Moku registers it: see app\docs\notifications.md for the maintainer's steps.
+-->
+<Package IgnorableNamespaces="uap uap3 uap10 rescap"
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
+  <Identity Name="@PACKAGE_NAME@" Publisher="@PUBLISHER@" Version="@VERSION@" ProcessorArchitecture="neutral" />
+  <Properties>
+    <DisplayName>Moku</DisplayName>
+    <PublisherDisplayName>Moku</PublisherDisplayName>
+    <Logo>assets\icon\storelogo.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+    <uap3:Capability Name="userNotificationListener" />
+  </Capabilities>
+  <Applications>
+    <Application Id="@APPLICATION_ID@" Executable="moku.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements AppListEntry="none" DisplayName="Moku" Description="Moku dynamic island" BackgroundColor="transparent" Square150x150Logo="assets\icon\Square150x150Logo.png" Square44x44Logo="assets\icon\Square44x44Logo.png" />
+    </Application>
+  </Applications>
+</Package>

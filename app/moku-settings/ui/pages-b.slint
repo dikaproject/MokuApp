@@ -1,0 +1,449 @@
+import { Cfg } from "cfg.slint";
+import { Theme } from "theme.slint";
+import { ClaudeSection } from "pages-g.slint";
+import { Page, Card, Setting, ToggleSetting, Toggle, Segmented, SectionLabel, Btn, Field, Stepper, Glyph, IconTile, Badge } from "widgets.slint";
+import { JSettings } from "pages-j.slint";
+import { PowerSettings } from "pages-h.slint";
+import { IbadahSettings } from "pages-n.slint";
+import { AgentsSection, MirrorSection } from "pages-q.slint";
+import { PSettings } from "pages-p.slint";
+import { PhoneSettings } from "pages-r.slint";
+
+// ---------------------------------------------------------------- Fitur
+
+component FeatureTile inherits Rectangle {
+    in property <string> glyph;
+    in property <color> tint;
+    in property <string> title;
+    in property <string> subtitle;
+    in property <bool> checked;
+    in property <bool> soon: false;
+    callback toggled(bool);
+    min-height: 60px;
+    background: Theme.card;
+    border-radius: 14px;
+    border-width: 1px;
+    border-color: Theme.line;
+    opacity: root.soon ? 0.6 : 1.0;
+    HorizontalLayout {
+        padding: 12px;
+        spacing: 11px;
+        VerticalLayout {
+            alignment: center;
+            IconTile { glyph: root.glyph; tint: root.tint; size: 34px; }
+        }
+        VerticalLayout {
+            alignment: center;
+            spacing: 2px;
+            horizontal-stretch: 1;
+            Text { text: root.title; font-size: 13px; font-weight: 600; color: Theme.text; overflow: elide; }
+            Text { text: root.subtitle; font-size: 11px; color: Theme.text3; overflow: elide; }
+        }
+        VerticalLayout {
+            alignment: center;
+            if !root.soon: Toggle {
+                checked: root.checked;
+                toggled(v) => { root.toggled(v); }
+            }
+            if root.soon: Badge { text: "segera"; }
+        }
+    }
+}
+
+export component FiturPage inherits Page {
+    title: "Fitur";
+    subtitle: "Nyalakan hanya yang kamu pakai. Fitur yang mati tidak memakan memori.";
+
+    GridLayout {
+        spacing: 10px;
+        Row {
+            FeatureTile {
+                glyph: "\u{EC4F}"; tint: #ff5a5f; title: "Musik & lirik"; subtitle: "Kontrol pemutar dan lirik berjalan";
+                checked: Cfg.f.media-enabled;
+                toggled(v) => { Cfg.f.media-enabled = v; Cfg.commit(); }
+            }
+            FeatureTile {
+                glyph: "\u{EA8F}"; tint: #0a84ff; title: "Notifikasi"; subtitle: "Dari mokuctl dan skrip, tampil di island";
+                checked: Cfg.f.ipc-enabled;
+                toggled(v) => { Cfg.f.ipc-enabled = v; Cfg.commit(); }
+            }
+        }
+        Row {
+            FeatureTile {
+                glyph: "\u{EC59}"; tint: #8e5cf2; title: "Shelf"; subtitle: "Simpan file sementara dengan seret-lepas";
+                checked: Cfg.f.shelf-enabled;
+                toggled(v) => { Cfg.f.shelf-enabled = v; Cfg.commit(); }
+            }
+            FeatureTile {
+                glyph: "\u{E77F}"; tint: #2fb99a; title: "Riwayat clipboard"; subtitle: "Teks dan gambar yang baru disalin";
+                checked: Cfg.f.clipboard-enabled;
+                toggled(v) => { Cfg.f.clipboard-enabled = v; Cfg.commit(); }
+            }
+        }
+        Row {
+            FeatureTile {
+                glyph: "\u{E722}"; tint: #2b7bef; title: "Tangkap layar"; subtitle: "Area, jendela, dan layar penuh";
+                checked: Cfg.f.capture-enabled;
+                toggled(v) => { Cfg.f.capture-enabled = v; Cfg.commit(); }
+            }
+            FeatureTile {
+                glyph: "\u{E823}"; tint: #f0a02a; title: "Timer & fokus"; subtitle: "Timer, stopwatch, dan pomodoro";
+                checked: Cfg.f.timer-enabled;
+                toggled(v) => { Cfg.f.timer-enabled = v; Cfg.commit(); }
+            }
+        }
+        Row {
+            FeatureTile {
+                glyph: "\u{E9D9}"; tint: #2fb99a; title: "Monitor sistem"; subtitle: "CPU, RAM, GPU, disk, jaringan";
+                checked: Cfg.f.monitor-enabled;
+                toggled(v) => { Cfg.f.monitor-enabled = v; Cfg.commit(); }
+            }
+            FeatureTile {
+                glyph: "\u{E9E9}"; tint: #5e6ef0; title: "Panel kontrol"; subtitle: "Wi-Fi, Bluetooth, volume, kecerahan";
+                checked: Cfg.f.control-enabled;
+                toggled(v) => { Cfg.f.control-enabled = v; Cfg.commit(); }
+            }
+        }
+        Row {
+            FeatureTile {
+                glyph: "\u{E787}"; tint: #e8604c; title: "Hari ini"; subtitle: "Tanggal, to-do, dan cuaca";
+                checked: Cfg.f.today-enabled;
+                toggled(v) => { Cfg.f.today-enabled = v; Cfg.commit(); }
+            }
+            FeatureTile {
+                glyph: "\u{E767}"; tint: #0a84ff; title: "Indikator volume"; subtitle: "Pil sesaat saat volume berubah";
+                checked: Cfg.f.volume-osd-enabled;
+                toggled(v) => { Cfg.f.volume-osd-enabled = v; Cfg.commit(); }
+            }
+        }
+        Row {
+            FeatureTile {
+                glyph: "\u{E943}"; tint: #f0a02a; title: "Izin AI coding"; subtitle: "Kartu izin untuk Claude Code dan agen lain";
+                checked: Cfg.f.ipc-ai-cards;
+                toggled(v) => { Cfg.f.ipc-ai-cards = v; Cfg.commit(); }
+            }
+            FeatureTile {
+                glyph: "\u{E753}"; tint: #0a84ff; title: "Pengingat minum"; subtitle: "Pengingat kesehatan berkala";
+                checked: Cfg.f.reminders-water;
+                toggled(v) => { Cfg.f.reminders-water = v; Cfg.commit(); }
+            }
+        }
+        Row {
+            FeatureTile {
+                glyph: "\u{E890}"; tint: #8e5cf2; title: "Istirahat mata"; subtitle: "Pengingat 20-20-20";
+                checked: Cfg.f.reminders-eye;
+                toggled(v) => { Cfg.f.reminders-eye = v; Cfg.commit(); }
+            }
+            FeatureTile {
+                glyph: "\u{E708}"; tint: #f0a02a; title: "Jadwal sholat"; subtitle: "Modul regional, bisa dimatikan";
+                checked: Cfg.f.prayer-enabled;
+                toggled(v) => { Cfg.f.prayer-enabled = v; Cfg.commit(); }
+            }
+        }
+        Row {
+            FeatureTile {
+                glyph: "\u{E8EA}"; tint: #2b7bef; title: "Moku Link"; subtitle: "Sambungkan HP lewat Wi-Fi";
+                soon: true;
+            }
+            Rectangle { }
+        }
+    }
+
+    SectionLabel { text: "ATUR FITUR"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Musik: lirik berjalan";
+            subtitle: "Mengambil lirik dari LRCLIB saat lagu diputar";
+            Toggle {
+                checked: Cfg.f.media-lyrics;
+                toggled(v) => { Cfg.f.media-lyrics = v; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Musik: tampilkan baris lirik di pil";
+            Toggle {
+                checked: Cfg.f.media-lyrics-in-pill;
+                toggled(v) => { Cfg.f.media-lyrics-in-pill = v; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Timer: lama fokus";
+            Stepper {
+                minimum: 1; maximum: 180; step: 5; suffix: " menit";
+                value: Cfg.f.timer-focus;
+                edited(v) => { Cfg.f.timer-focus = v; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Timer: lama istirahat";
+            Stepper {
+                minimum: 1; maximum: 60; step: 1; suffix: " menit";
+                value: Cfg.f.timer-break;
+                edited(v) => { Cfg.f.timer-break = v; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Tangkap layar: salin ke clipboard";
+            Toggle {
+                checked: Cfg.f.capture-copy;
+                toggled(v) => { Cfg.f.capture-copy = v; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Tangkap layar: folder simpan";
+            subtitle: "Kosong = Pictures\\Moku";
+            Field {
+                width: 260px;
+                placeholder: "Pictures\\Moku";
+                text: Cfg.f.capture-save-dir;
+                edited(t) => { Cfg.f.capture-save-dir = t; Cfg.commit(); }
+            }
+        }
+    }
+
+    PowerSettings { }
+
+    SectionLabel { text: "HARI INI & CUACA"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Tampilkan cuaca";
+            subtitle: "Dari Open-Meteo, hanya saat fitur ini menyala";
+            checked: Cfg.f.today-weather;
+            toggled(v) => { Cfg.f.today-weather = v; Cfg.commit(); }
+        }
+        Setting {
+            title: "Kota";
+            subtitle: "Lokasi ditemukan otomatis dari nama kota";
+            Field {
+                width: 200px;
+                text: Cfg.f.today-city;
+                edited(t) => { Cfg.f.today-city = t; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Satuan";
+            Segmented {
+                options: ["Metrik", "Imperial"];
+                index: Cfg.f.today-units;
+                selected(i) => { Cfg.f.today-units = i; Cfg.commit(); }
+            }
+        }
+    }
+
+    SectionLabel { text: "JADWAL SHOLAT"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Nama kota";
+            Field {
+                width: 200px;
+                text: Cfg.f.prayer-city;
+                edited(t) => { Cfg.f.prayer-city = t; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Lintang";
+            subtitle: Cfg.problems.prayer-lat != "" ? Cfg.problems.prayer-lat : "-90 sampai 90, contoh -6.2088";
+            Field {
+                width: 120px;
+                mono: true;
+                text: Cfg.f.prayer-lat;
+                invalid: Cfg.problems.prayer-lat != "";
+                edited(t) => { Cfg.f.prayer-lat = t; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Bujur";
+            subtitle: Cfg.problems.prayer-lon != "" ? Cfg.problems.prayer-lon : "-180 sampai 180, contoh 106.8456";
+            Field {
+                width: 120px;
+                mono: true;
+                text: Cfg.f.prayer-lon;
+                invalid: Cfg.problems.prayer-lon != "";
+                edited(t) => { Cfg.f.prayer-lon = t; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Ingatkan sebelum waktu sholat";
+            Stepper {
+                minimum: 0; maximum: 120; step: 5; suffix: " menit";
+                value: Cfg.f.prayer-minutes-before;
+                edited(v) => { Cfg.f.prayer-minutes-before = v; Cfg.commit(); }
+            }
+        }
+    }
+
+    IbadahSettings { }
+
+    JSettings { }
+
+    PSettings { }
+    PhoneSettings { }
+}
+
+// ---------------------------------------------------------------- Notifikasi
+
+export component NotifikasiPage inherits Page {
+    title: "Notifikasi";
+    subtitle: "Cara pemberitahuan tampil di island, pil sistem, dan pengingat.";
+
+    SectionLabel { text: "TAMPILAN"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Tampilkan notifikasi di island";
+            subtitle: "Pesan dari mokuctl dan skrip lain";
+            checked: Cfg.f.ipc-enabled;
+            toggled(v) => { Cfg.f.ipc-enabled = v; Cfg.commit(); }
+        }
+        ToggleSetting {
+            title: "Kartu izin AI coding";
+            subtitle: "Setujui atau tolak perintah agen lewat mokuctl ask";
+            checked: Cfg.f.ipc-ai-cards;
+            toggled(v) => { Cfg.f.ipc-ai-cards = v; Cfg.commit(); }
+        }
+        Setting {
+            title: "Riwayat notifikasi";
+            subtitle: "Jumlah maksimum yang disimpan di panel Notifikasi";
+            Stepper {
+                minimum: 1; maximum: 500; step: 10; suffix: " item";
+                value: Cfg.f.ipc-max-notifications;
+                edited(v) => { Cfg.f.ipc-max-notifications = v; Cfg.commit(); }
+            }
+        }
+    }
+
+    ClaudeSection { }
+    AgentsSection { }
+    MirrorSection { }
+
+    SectionLabel { text: "JANGAN GANGGU"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Tahan notifikasi saat mode fokus";
+            subtitle: "Notifikasi baru muncul setelah fokus selesai";
+            checked: Cfg.f.timer-hold;
+            toggled(v) => { Cfg.f.timer-hold = v; Cfg.commit(); }
+        }
+        ToggleSetting {
+            title: "Sembunyikan isi notifikasi saat rapat";
+            subtitle: "Hanya judulnya yang tampil ketika layar dibagikan";
+            checked: Cfg.f.privacy-hide-body;
+            toggled(v) => { Cfg.f.privacy-hide-body = v; Cfg.commit(); }
+        }
+    }
+
+    SectionLabel { text: "PIL SISTEM"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Baterai";
+            subtitle: "Baterai hampir habis dan sedang mengisi";
+            checked: Cfg.f.system-battery;
+            toggled(v) => { Cfg.f.system-battery = v; Cfg.commit(); }
+        }
+        ToggleSetting {
+            title: "Caps Lock";
+            checked: Cfg.f.system-caps-lock;
+            toggled(v) => { Cfg.f.system-caps-lock = v; Cfg.commit(); }
+        }
+        ToggleSetting {
+            title: "Internet";
+            subtitle: "Putus dan tersambung kembali";
+            checked: Cfg.f.system-network;
+            toggled(v) => { Cfg.f.system-network = v; Cfg.commit(); }
+        }
+        ToggleSetting {
+            title: "Titik privasi";
+            subtitle: "Penanda saat kamera atau mikrofon dipakai";
+            checked: Cfg.f.system-privacy-dots;
+            toggled(v) => { Cfg.f.system-privacy-dots = v; Cfg.commit(); }
+        }
+        ToggleSetting {
+            title: "Mode rapat";
+            subtitle: "Tombol bisukan mikrofon saat rapat berjalan";
+            checked: Cfg.f.system-meeting-mode;
+            toggled(v) => { Cfg.f.system-meeting-mode = v; Cfg.commit(); }
+        }
+    }
+
+    SectionLabel { text: "PENGINGAT"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Pengingat minum";
+            checked: Cfg.f.reminders-water;
+            toggled(v) => { Cfg.f.reminders-water = v; Cfg.commit(); }
+        }
+        Setting {
+            title: "Selang waktu minum";
+            Stepper {
+                minimum: 5; maximum: 480; step: 5; suffix: " menit";
+                value: Cfg.f.reminders-water-interval;
+                edited(v) => { Cfg.f.reminders-water-interval = v; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Target minum per hari";
+            Stepper {
+                minimum: 1; maximum: 30; step: 1; suffix: " gelas";
+                value: Cfg.f.reminders-water-target;
+                edited(v) => { Cfg.f.reminders-water-target = v; Cfg.commit(); }
+            }
+        }
+        ToggleSetting {
+            title: "Istirahat mata";
+            checked: Cfg.f.reminders-eye;
+            toggled(v) => { Cfg.f.reminders-eye = v; Cfg.commit(); }
+        }
+        Setting {
+            title: "Selang waktu istirahat mata";
+            Stepper {
+                minimum: 5; maximum: 240; step: 5; suffix: " menit";
+                value: Cfg.f.reminders-eye-interval;
+                edited(v) => { Cfg.f.reminders-eye-interval = v; Cfg.commit(); }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Moku Link
+
+export component MokuLinkPage inherits Page {
+    title: "Moku Link";
+    subtitle: "HP yang tersambung dan apa saja yang diterima dari HP.";
+
+    Rectangle {
+        height: 200px;
+        background: Theme.card;
+        border-radius: 18px;
+        border-width: 1px;
+        border-color: Theme.line;
+        VerticalLayout {
+            alignment: center;
+            spacing: 10px;
+            HorizontalLayout {
+                alignment: center;
+                IconTile { glyph: "\u{E8EA}"; tint: #2b7bef; size: 46px; }
+            }
+            HorizontalLayout {
+                alignment: center;
+                Text { text: "Segera hadir"; font-size: 18px; font-weight: 700; color: Theme.text; }
+            }
+            HorizontalLayout {
+                alignment: center;
+                Text {
+                    width: 420px;
+                    text: "Notifikasi, panggilan, dan kode OTP dari HP akan muncul di island lewat aplikasi pendamping Android. Aplikasinya belum tersedia di versi 0.1.";
+                    font-size: 12.5px;
+                    color: Theme.text2;
+                    wrap: word-wrap;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+    }
+}

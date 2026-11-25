@@ -1,0 +1,370 @@
+//! Feature `media` — Task 2 (track A).
+//!
+//! Music from the Windows media session (GSMTC): the music pill (art, title, artist, bars that
+//! move only while playing; lyric mode with `media.lyrics_in_pill`), the Musik panel (art,
+//! lyrics, seek bar, prev / play / next, output device) and the album colour as accent
+//! (`appearance.follow_album_color`).
+//!
+//! * `session.rs` — the GSMTC service thread (events → [`model::Update`]s).
+//! * `model.rs`   — the pure state reducer (tested).
+//! * `inbox.rs`   — event-driven command queue shared by the track-A services.
+
+pub mod inbox;
+pub mod model;
+mod session;
+
+use std::time::{Duration, Instant};
+
+use model::{Media, Update, fmt_time};
+use session::Cmd;
+
+use crate::activity::{Activity, priority};
+use crate::app::{App, Redraw, TimerId};
+use crate::features::{lyrics, volume_osd};
+use crate::i18n::{tr, tr_s};
+use crate::registry::*;
+use crate::ui::*;
+
+/// Activity id of the music pill.
+pub const PILL_ID: &str = "media.music";
+
+pub struct MediaState {
+    pub m: Media,
+    /// Seek bar position while it is being dragged.
+    scrub: Option<f32>,
+    /// Lyric lines (vs. album info) in the panel — the "Lirik" chip.
+    show_lyrics: bool,
+    /// Pending "open the panel" after a single click on the pill (cancelled by a double-click).
+    click_timer: Option<TimerId>,
+}
+
+impl Default for MediaState {
+    fn default() -> Self {
+        MediaState { m: Media::default(), scrub: None, show_lyrics: true, click_timer: None }
+    }
+}
+
+pub fn register(r: &mut Registry) {
+    r.add_state(MediaState::default());
+    r.add_tab(TabSpec {
+        id: "media",
+        order: order::MEDIA,
+        icon: icons::MUSIC,
+        label: ("Musik", "Music"),
+        enabled: |c| c.media.enabled,
+        build: panel,
+        // Timeline at 1 s only while the Musik tab is visible.
+        tick: Some((Duration::from_secs(1), |app| {
+            session::INBOX.push(Cmd::Timeline);
+            app.request_redraw(Redraw::Tab("media"));
+        })),
+    });
+    r.on_action("media", on_action);
+    r.on_config(|app| {
+        if !app.config().media.enabled && app.state::<MediaState>().m.app.is_some() {
+            apply(app, Update::SessionGone);
+        }
+        sync(app);
+    });
+    r.add_service(ServiceSpec { name: "media", enabled: |c| c.media.enabled, run: session::run });
+}
+
+/// Choose the session to show again (`island.media_ignore_apps` changed).
+pub fn repick() {
+    session::INBOX.push(Cmd::Session);
+}
+
+/// Apply an update from the session service (UI thread).
+pub fn apply(app: &mut App, u: Update) {
+    // A late post from a service that was just switched off must not bring the pill back.
+    if !app.config().media.enabled && u != Update::SessionGone {
+        return;
+    }
+    let changed = app.state_mut::<MediaState>().m.apply(u);
+    sync(app);
+    if changed.track {
+        lyrics::track_changed(app);
+    } else {
+        lyrics::reschedule(app);
+    }
+}
+
+/// Pill and accent from the state.
+fn sync(app: &mut App) {
+    let m = &app.state::<MediaState>().m;
+    let has = m.has_music();
+    let accent = if app.config().appearance.follow_album_color { m.accent() } else { None };
+    if has {
+        if !app.has_activity(PILL_ID) {
+            app.set_activity(Activity::persistent(PILL_ID, priority::MUSIC, music_pill).tab("media").bubble(|app| art_node(app, 24.0, 7.0)));
+        }
+    } else {
+        app.clear_activity(PILL_ID);
+    }
+    app.set_accent_override(accent);
+    app.request_redraw(Redraw::All);
+}
+
+fn on_action(app: &mut App, ev: &ActionEvent) {
+    match (ev.name(), ev.kind) {
+        ("pill", ActionKind::Click) => {
+            // Wait for a possible double-click before opening the panel.
+            if app.state::<MediaState>().click_timer.is_none() {
+                let ms = unsafe { windows::Win32::UI::Input::KeyboardAndMouse::GetDoubleClickTime() }.clamp(150, 600);
+                let id = app.after(Duration::from_millis(ms as u64 + 20), |app| {
+                    app.state_mut::<MediaState>().click_timer = None;
+                    // Like any click on the pill: the tab the user last chose (Musik when
+                    // nothing was chosen yet), not always Musik.
+                    app.open_panel(None);
+                });
+                app.state_mut::<MediaState>().click_timer = Some(id);
+            }
+        }
+        ("pill", ActionKind::DoubleClick) => {
+            if let Some(t) = app.state_mut::<MediaState>().click_timer.take() {
+                app.cancel_timer(t);
+            }
+            toggle(app);
+        }
+        ("pill" | "mute", ActionKind::Scroll(n)) => volume_osd::nudge(n * 0.02),
+        ("mute", ActionKind::Click) => volume_osd::toggle_mute(),
+        ("toggle", ActionKind::Click) => toggle(app),
+        ("next", ActionKind::Click) => session::INBOX.push(Cmd::Next),
+        ("prev", ActionKind::Click) => session::INBOX.push(Cmd::Prev),
+        ("seek", ActionKind::Slide { value, done }) => {
+            if done {
+                app.state_mut::<MediaState>().scrub = None;
+                let dur = app.state::<MediaState>().m.timeline.dur_ms;
+                seek(app, (value.clamp(0.0, 1.0) as f64 * dur as f64) as u64);
+            } else {
+                app.state_mut::<MediaState>().scrub = Some(value);
+            }
+            app.request_redraw(Redraw::Tab("media"));
+        }
+        ("seek_ms", ActionKind::Click) => {
+            if let Some(ms) = ev.arg().and_then(|a| a.parse().ok()) {
+                seek(app, ms);
+            }
+        }
+        ("lyrics", ActionKind::Click) => {
+            let s = app.state_mut::<MediaState>();
+            s.show_lyrics = !s.show_lyrics;
+            app.request_redraw(Redraw::Tab("media"));
+        }
+        ("output", ActionKind::Click) => app.open_panel(Some("control")),
+        // Debug/demo path: feed sample data through the reducer (`mokuctl debug click media.sample`).
+        ("sample", ActionKind::Click) => sample(app),
+        // Simulate the player going away, then let the service pick the real session again.
+        ("sample_off", ActionKind::Click) => {
+            apply(app, Update::SessionGone);
+            session::INBOX.push(Cmd::Reset);
+        }
+        _ => {}
+    }
+}
+
+/// Play/pause, with the state flipped right away so the button and bars react instantly.
+fn toggle(app: &mut App) {
+    let now = Instant::now();
+    let m = &mut app.state_mut::<MediaState>().m;
+    if !m.has_music() {
+        return;
+    }
+    m.timeline.pos_ms = m.position_ms(now);
+    m.timeline.at = Some(now);
+    m.playing = !m.playing;
+    session::INBOX.push(Cmd::Toggle);
+    app.request_redraw(Redraw::All);
+    lyrics::reschedule(app);
+}
+
+fn seek(app: &mut App, ms: u64) {
+    let m = &mut app.state_mut::<MediaState>().m;
+    if !m.controls.seek {
+        return;
+    }
+    m.timeline.pos_ms = ms;
+    m.timeline.at = Some(Instant::now());
+    session::INBOX.push(Cmd::Seek(ms));
+    app.request_redraw(Redraw::All);
+    lyrics::reschedule(app);
+}
+
+/// "Spotify.exe" / "Microsoft.ZuneMusic_8wekyb3d8bbwe!Microsoft.ZuneMusic" → "Spotify" / "ZuneMusic".
+pub fn app_name(aumid: &str) -> String {
+    let s = aumid.rsplit('!').next().unwrap_or(aumid);
+    let s = s.rsplit(['\\', '/']).next().unwrap_or(s);
+    let s = s.strip_suffix(".exe").or_else(|| s.strip_suffix(".EXE")).unwrap_or(s);
+    let s = s.split('_').next().unwrap_or(s);
+    let s = s.rsplit('.').next().unwrap_or(s);
+    let mut c = s.chars();
+    match c.next() {
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+        None => String::new(),
+    }
+}
+
+// ---- UI ----------------------------------------------------------------------------------------
+
+fn art_node(app: &App, size: f32, radius: f32) -> Node {
+    match &app.state::<MediaState>().m.art {
+        Some(img) => image(img, radius).size(size, size),
+        None => stack([icon(icons::MUSIC).font_size((size * 0.42).round()).color(color::TEXT2)]).size(size, size).bg(color::FILL2).radius(radius),
+    }
+}
+
+/// Bars colour: the album colour when there is one, else the mockup pink.
+fn bar_color(app: &App) -> Rgba {
+    app.state::<MediaState>().m.art_color.unwrap_or(color::PINK)
+}
+
+fn music_pill(app: &App) -> Node {
+    let m = &app.state::<MediaState>().m;
+    let Some(t) = &m.track else { return pill([icon(icons::MUSIC)]) };
+    let content = match lyrics::pill_lines(app) {
+        // "Lirik berjalan": the sung line, the next one dimmed.
+        Some((cur, next)) => {
+            let mut r = row([art_node(app, 24.0, 7.0), text(cur).semibold().max_w(320.0)]);
+            if !next.is_empty() {
+                r = r.child(text(next).tertiary().max_w(170.0));
+            }
+            r
+        }
+        None => {
+            let mut r = row([art_node(app, 24.0, 7.0), text(t.title.clone()).semibold().max_w(230.0)]);
+            if !t.artist.is_empty() {
+                r = r.child(text(t.artist.clone()).secondary().max_w(150.0));
+            }
+            r.child(gap_px(3.0)).child(bars(m.playing).color(bar_color(app)))
+        }
+    };
+    content.h(36.0).pad4(8.0, 0.0, 12.0, 0.0).gap(8.0).action("media.pill")
+}
+
+/// Three lyric lines (previous / current / next) or a status line, always three rows high so
+/// the panel doesn't jump.
+fn lyric_block(app: &App, pos: u64) -> Node {
+    let st = app.state::<MediaState>();
+    let ls = app.state::<lyrics::LyricsState>();
+    let line = |s: Option<(u64, String)>, big: bool| -> Node {
+        let Some((t, s)) = s else { return text(" ").font_size(if big { 15.0 } else { typo::BODY }) };
+        let s = if s.is_empty() { "♪".to_string() } else { s };
+        let n = if big { text(s).font_size(15.0).semibold() } else { text(s).tertiary() };
+        n.fill_w().action(format!("media.seek_ms:{t}"))
+    };
+    let status = |s: &str| col([text(" "), text(s.to_string()).tertiary().font_size(typo::CAPTION), text(" ")]).gap(4.0).fill_w();
+    let body = if !st.show_lyrics || !app.config().media.lyrics {
+        let from = st.m.app.as_deref().map(app_name).unwrap_or_default();
+        status(&tr_s(format!("Diputar dari {from}"), format!("Playing from {from}")))
+    } else {
+        match &ls.status {
+            lyrics::Status::Ready(lyrics::lrclib::Found::Synced(l)) => {
+                let (p, c, n) = lyrics::around(l, pos);
+                col([line(p, false), line(c, true), line(n, false)]).gap(4.0).fill_w()
+            }
+            lyrics::Status::Ready(lyrics::lrclib::Found::Instrumental) => status(tr("♪ Instrumental", "♪ Instrumental")),
+            lyrics::Status::Loading => status(tr("Mencari lirik…", "Looking for lyrics…")),
+            lyrics::Status::Failed => status(tr("Lirik tidak bisa dimuat", "Couldn't load lyrics")),
+            _ => status(tr("Lirik tidak tersedia", "No synced lyrics")),
+        }
+    };
+    body.pad4(0.0, 6.0, 0.0, 2.0)
+}
+
+fn panel(app: &App) -> Node {
+    let st = app.state::<MediaState>();
+    let m = &st.m;
+    let Some(t) = m.track.as_ref().filter(|_| m.has_music()) else {
+        return placeholder(icons::MUSIC, tr("Tidak ada musik", "Nothing playing"), tr("Putar lagu di aplikasi apa pun — Spotify, browser, Media Player.", "Play something in any app — Spotify, a browser, Media Player."));
+    };
+    let now = Instant::now();
+    let pos = match st.scrub {
+        Some(v) => (v as f64 * m.timeline.dur_ms as f64) as u64,
+        None => m.position_ms(now),
+    };
+    let frac = if m.timeline.dur_ms > 0 { pos as f32 / m.timeline.dur_ms as f32 } else { 0.0 };
+    let audio = app.state::<volume_osd::Audio>();
+
+    let subtitle = match (t.artist.is_empty(), t.album.is_empty()) {
+        (false, false) => format!("{} · {}", t.artist, t.album),
+        (false, true) => t.artist.clone(),
+        _ => t.album.clone(),
+    };
+    let mut head = row([col([title(t.title.clone()), text(subtitle).secondary()]).gap(2.0).grow(1.0)]).align(Align::Start).gap(10.0).fill_w();
+    if !audio.device.is_empty() {
+        let glyph = if audio.headphones { icons::HEADPHONE } else { icons::SPEAKER };
+        head = head.child(capsule(glyph, audio.device.clone(), "media.output").h(26.0).max_w(170.0));
+    }
+
+    // Thin progress bar with an invisible slider on top for seeking.
+    let bar = progress(frac).thickness(4.0).track(Rgba::hex(0xffffff, 0.22));
+    let mut seek_bar = stack([bar]).h(18.0).grow(1.0);
+    if m.controls.seek && m.timeline.dur_ms > 0 {
+        seek_bar = seek_bar.child(slider(frac).h(18.0).opacity(0.0).action("media.seek"));
+    }
+    let times = row([caption(fmt_time(pos)), seek_bar, caption(if m.timeline.dur_ms > 0 { fmt_time(m.timeline.dur_ms) } else { "--:--".into() })]).gap(10.0).fill_w();
+
+    let dim = |n: Node, on: bool| if on { n } else { n.opacity(0.35) };
+    let play_glyph = icons::solid(if m.playing { icons::PAUSE } else { icons::PLAY });
+    let lyric_chip = {
+        let c = capsule(icons::MUSIC, tr("Lirik", "Lyrics"), "media.lyrics");
+        if st.show_lyrics && app.config().media.lyrics { c.bg(app.accent()) } else { c }
+    };
+    let vol_glyph = if audio.muted { icons::MUTE } else { icons::VOLUME };
+    let controls = row([
+        lyric_chip,
+        spacer(),
+        dim(icon_button(icons::solid(icons::PREV), "media.prev"), m.controls.prev),
+        dim(stack([icon(play_glyph).font_size(16.0).color(color::INK)]).size(46.0, 46.0).bg(color::WHITE).capsule().action("media.toggle"), m.controls.play_pause),
+        dim(icon_button(icons::solid(icons::NEXT), "media.next"), m.controls.next),
+        spacer(),
+        circle_button(vol_glyph, 30.0, "media.mute"),
+    ])
+    .gap(18.0)
+    .fill_w();
+
+    let right = col([head, lyric_block(app, pos), times, controls]).gap(6.0).grow(1.0);
+    col([row([art_node(app, 156.0, 28.0), right]).gap(16.0).align(Align::Start).fill_w()])
+}
+
+// ---- sample data (debug) -----------------------------------------------------------------------
+
+const SAMPLE_LRC: &str = "[00:00.00]\n[00:20.00]lampu kota memudar di kaca jendela\n[00:26.00]dan kota pun perlahan terlelap\n[00:32.00]di bawah lampu jalan kita bicara\n[00:38.00]tentang esok yang belum bernama\n[01:20.00]lampu kota memudar di kaca jendela\n[01:26.00]dan kota pun perlahan terlelap\n[01:32.00]di bawah lampu jalan kita bicara\n[01:38.00]tentang esok yang belum bernama";
+
+/// Gradient square like the mockup's art (orange → pink).
+fn sample_art() -> Image {
+    let n = 128u32;
+    let mut px = Vec::with_capacity((n * n * 4) as usize);
+    for y in 0..n {
+        for x in 0..n {
+            let t = (x + y) as f32 / (2 * (n - 1)) as f32;
+            let l = |p: f32, q: f32| (p + (q - p) * t).round() as u8;
+            px.extend_from_slice(&[l(92.0, 119.0), l(138.0, 61.0), 255, 255]);
+        }
+    }
+    Image::new(n, n, px)
+}
+
+fn sample(app: &mut App) {
+    let track = model::Track { title: "Midnight Drive".into(), artist: "Kaia".into(), album: "Neon Atlas".into() };
+    let key = track.key();
+    apply(app, Update::Session { app: "Moku".into() });
+    apply(app, Update::Track(track));
+    apply(app, Update::Art { key: key.clone(), art: Some(sample_art()) });
+    apply(app, Update::Playback { playing: true, controls: model::Controls { prev: true, next: true, play_pause: true, seek: true } });
+    apply(app, Update::Timeline(model::Timeline { pos_ms: 84_500, dur_ms: 227_000, at: Some(Instant::now()) }));
+    lyrics::inject_sample(app, key, SAMPLE_LRC);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::app_name;
+
+    #[test]
+    fn player_names() {
+        assert_eq!(app_name("Spotify.exe"), "Spotify");
+        assert_eq!(app_name("Microsoft.ZuneMusic_8wekyb3d8bbwe!Microsoft.ZuneMusic"), "ZuneMusic");
+        assert_eq!(app_name("MSEdge"), "MSEdge");
+        assert_eq!(app_name(""), "");
+    }
+}

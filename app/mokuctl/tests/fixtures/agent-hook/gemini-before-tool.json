@@ -1,0 +1,11 @@
+{
+  "session_id": "gem-5f2a",
+  "transcript_path": "C:\\Users\\nama\\.gemini\\tmp\\abc\\chats\\session.json",
+  "cwd": "C:\\src\\blog",
+  "timestamp": "2026-11-25T08:30:00.000Z",
+  "hook_event_name": "BeforeTool",
+  "tool_name": "run_shell_command",
+  "tool_input": {
+    "command": "npm test"
+  }
+}

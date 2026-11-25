@@ -1,0 +1,210 @@
+// Track O (v0.3), "island yang sopan": where the island lives (monitor, left / centre / right + a
+// nudge), when it steps aside or hides, and the per-app lists. Shown on the Island page. Not part
+// of `Form`: this file has its own bridge (`PlacementCfg`), src/placement_page.rs reads / writes
+// `[island]` of config.toml directly (read-modify-write, like every other save).
+import { Theme } from "theme.slint";
+import { Card, Setting, ToggleSetting, Field, Btn, Stepper, Segmented, SectionLabel, Glyph } from "widgets.slint";
+
+export global PlacementCfg {
+    // 0 utama, 1 ikuti kursor, 2 monitor tertentu
+    in-out property <int> monitor-mode;
+    in-out property <[string]> monitor-names;
+    in-out property <int> monitor-index;
+    // 0 kiri, 1 tengah, 2 kanan
+    in-out property <int> anchor: 1;
+    in-out property <int> offset;
+    // 0 mati, 1 pudar, 2 geser
+    in-out property <int> move-aside;
+    in-out property <bool> hide-edge;
+    in-out property <[string]> hide-apps;
+    in-out property <[string]> media-apps;
+    // Why the last app could not be added ("" = fine).
+    in-out property <string> problem;
+    // Which list is waiting for "the app in front" (0 = none, 1 hide list, 2 media list) and what to tell.
+    in-out property <int> capturing;
+    in-out property <string> capture-status;
+
+    // Rust re-reads config.toml (called when the page is built, so "Reset ke awal" shows).
+    callback reload();
+    callback set-monitor-mode(int);
+    callback set-monitor(int);
+    callback set-anchor(int);
+    callback set-offset(int);
+    callback set-move-aside(int);
+    callback set-hide-edge(bool);
+    // list: 1 = hide, 2 = media. Returns true when the app was added (the field is cleared then).
+    callback add-app(int, string) -> bool;
+    callback remove-app(int, int);
+    callback capture-app(int);
+}
+
+component AppRow inherits Rectangle {
+    in property <string> name;
+    callback removed();
+    min-height: 40px;
+    Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.line;
+    }
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 14px;
+        padding-top: 5px;
+        padding-bottom: 5px;
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            Glyph { g: "\u{E737}"; font-size: 14px; width: 18px; color: Theme.text3; }
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            Text {
+                text: root.name;
+                font-family: "Consolas";
+                font-size: 12.5px;
+                color: Theme.text;
+                overflow: elide;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            Btn { text: "Hapus"; kind: "danger"; clicked => { root.removed(); } }
+        }
+    }
+}
+
+// A list of apps with a field to type one and "tambah aplikasi yang sedang aktif".
+component AppList inherits VerticalLayout {
+    in property <int> list;
+    in property <string> title;
+    in property <string> subtitle;
+    in property <[string]> items;
+    in property <string> placeholder;
+    Setting {
+        first: true;
+        title: root.title;
+        subtitle: root.subtitle;
+    }
+    for a[i] in root.items: AppRow {
+        name: a;
+        removed => { PlacementCfg.remove-app(root.list, i); }
+    }
+    Setting {
+        title: "Tambah aplikasi";
+        subtitle: PlacementCfg.capturing == root.list ? PlacementCfg.capture-status
+            : PlacementCfg.problem != "" && PlacementCfg.capturing == 0 ? PlacementCfg.problem
+            : "Ketik nama programnya, atau tekan tombol lalu pindah ke aplikasinya";
+        adder := Field {
+            width: 150px;
+            placeholder: root.placeholder;
+            edited(t) => { PlacementCfg.problem = ""; }
+        }
+        Btn {
+            text: "Tambah";
+            kind: "accent";
+            width: 84px;
+            clicked => {
+                if (PlacementCfg.add-app(root.list, adder.text)) {
+                    adder.text = "";
+                }
+            }
+        }
+        Btn {
+            text: PlacementCfg.capturing == root.list ? "Batal" : "Aplikasi aktif";
+            clicked => { PlacementCfg.capture-app(PlacementCfg.capturing == root.list ? 0 : root.list); }
+        }
+    }
+}
+
+// The monitor rows, in the "Bentuk" card of the Island page (where the v0.1 placeholder was).
+export component MonitorSettings inherits VerticalLayout {
+    init => { PlacementCfg.reload(); }
+    Setting {
+        title: "Monitor";
+        subtitle: "Ikuti kursor pindah setelah 0,3 detik";
+        Segmented {
+            options: ["Utama", "Ikuti kursor", "Tertentu"];
+            index: PlacementCfg.monitor-mode;
+            selected(i) => { PlacementCfg.set-monitor-mode(i); }
+        }
+    }
+    if PlacementCfg.monitor-mode == 2: Setting {
+        title: "Pilih monitor";
+        subtitle: PlacementCfg.monitor-names.length == 0 ? "Tidak ada monitor yang terbaca" : "Kalau dicabut, island pindah ke monitor utama";
+        Segmented {
+            options: PlacementCfg.monitor-names;
+            index: PlacementCfg.monitor-index;
+            selected(i) => { PlacementCfg.set-monitor(i); }
+        }
+    }
+}
+
+// Placed at the end of the Island page.
+export component PlacementSettings inherits VerticalLayout {
+    spacing: 8px;
+
+    SectionLabel { text: "POSISI"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Letak";
+            subtitle: "Island membuka panel dari tengahnya, jadi tidak bisa lebih dekat ke sisi daripada setengah panel";
+            Segmented {
+                options: ["Kiri", "Tengah", "Kanan"];
+                index: PlacementCfg.anchor;
+                selected(i) => { PlacementCfg.set-anchor(i); }
+            }
+        }
+        Setting {
+            title: "Geser halus";
+            subtitle: "Dari letak di atas; plus ke kanan, minus ke kiri";
+            Stepper {
+                minimum: -800; maximum: 800; step: 10; suffix: " px";
+                value: PlacementCfg.offset;
+                edited(v) => { PlacementCfg.set-offset(v); }
+            }
+        }
+    }
+
+    SectionLabel { text: "SOPAN"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Minggir saat kursor lewat";
+            subtitle: "Kalau kursor menuju area di bawah island (misalnya bilah alamat browser) dan bukan ke island, island memudar atau bergeser, dan klik tembus ke bawah. Kembali setelah kursor menjauh.";
+            Segmented {
+                options: ["Mati", "Pudar", "Geser"];
+                index: PlacementCfg.move-aside;
+                selected(i) => { PlacementCfg.set-move-aside(i); }
+            }
+        }
+        ToggleSetting {
+            title: "Sembunyi sampai tepi atas";
+            subtitle: "Island baru muncul saat kursor menyentuh tepi atas layar di dekatnya, atau saat ada yang baru masuk";
+            checked: PlacementCfg.hide-edge;
+            toggled(v) => { PlacementCfg.set-hide-edge(v); }
+        }
+    }
+
+    SectionLabel { text: "PER APLIKASI"; }
+    Card {
+        AppList {
+            list: 1;
+            title: "Sembunyi di depan aplikasi ini";
+            subtitle: "Island hilang selama salah satu aplikasi ini ada di depan, seperti saat layar penuh";
+            items: PlacementCfg.hide-apps;
+            placeholder: "chrome.exe";
+        }
+    }
+    Card {
+        AppList {
+            list: 2;
+            title: "Abaikan musik dari aplikasi ini";
+            subtitle: "Pil musik tidak muncul untuk pemutar ini. Cocok dengan nama programnya (Spotify.exe) atau sebagian id sumbernya.";
+            items: PlacementCfg.media-apps;
+            placeholder: "Spotify.exe";
+        }
+    }
+}

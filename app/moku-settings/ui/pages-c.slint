@@ -1,0 +1,289 @@
+import { Cfg } from "cfg.slint";
+import { Theme } from "theme.slint";
+import { Page, Card, Setting, ToggleSetting, Toggle, Segmented, SectionLabel, Btn, Field, Stepper, Glyph, IconTile, Kbd } from "widgets.slint";
+import { UpdateSection } from "pages-i.slint";
+import { LauncherSettings } from "pages-k.slint";
+import { OcrSettings } from "pages-l.slint";
+
+// ---------------------------------------------------------------- Pintasan
+
+export component PintasanPage inherits Page {
+    title: "Pintasan";
+    subtitle: "Tombol pintas global. Ketik kombinasinya, mis. Alt+M atau Ctrl+Alt+Shift+Q.";
+
+    SectionLabel { text: "TOMBOL PINTAS"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Buka atau tutup island";
+            subtitle: Cfg.problems.hotkey-toggle != "" ? Cfg.problems.hotkey-toggle : "Pakai Ctrl, Alt, Shift, atau Win, lalu satu tombol";
+            Field {
+                width: 200px;
+                text: Cfg.f.general-hotkey-toggle;
+                invalid: Cfg.problems.hotkey-toggle != "";
+                edited(t) => { Cfg.f.general-hotkey-toggle = t; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Keluar dari Moku";
+            subtitle: Cfg.problems.hotkey-quit != "" ? Cfg.problems.hotkey-quit : "Harus berbeda dari tombol di atas dan dari pintasan Moku lainnya";
+            Field {
+                width: 200px;
+                text: Cfg.f.general-hotkey-quit;
+                invalid: Cfg.problems.hotkey-quit != "";
+                edited(t) => { Cfg.f.general-hotkey-quit = t; Cfg.commit(); }
+            }
+        }
+    }
+    Text {
+        text: "Tombol pintas baru dipakai setelah island memuat ulang pengaturan (beberapa detik). Nilai yang tidak valid tidak disimpan.";
+        font-size: 11.5px;
+        color: Theme.text3;
+        wrap: word-wrap;
+    }
+
+    LauncherSettings { }
+    OcrSettings { }
+
+    SectionLabel { text: "GESTUR DI PIL"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Scroll";
+            Text { text: "Volume"; font-size: 12.5px; color: Theme.text2; vertical-alignment: center; }
+        }
+        Setting {
+            title: "Klik dua kali";
+            Text { text: "Play / pause"; font-size: 12.5px; color: Theme.text2; vertical-alignment: center; }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Plugin
+
+export component PluginPage inherits Page {
+    title: "Plugin";
+    subtitle: "Hubungkan skrip dan agen coding ke island lewat mokuctl.";
+
+    SectionLabel { text: "IZIN AI CODING"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Izin AI coding";
+            subtitle: "Kartu izin dan kabar selesai untuk agen coding";
+            Toggle {
+                checked: Cfg.f.ipc-ai-cards;
+                toggled(v) => { Cfg.f.ipc-ai-cards = v; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Hook Claude Code";
+            subtitle: Cfg.doc-found ? "Panduan pemasangan: " + Cfg.doc-path : "Panduan: " + Cfg.doc-path + " (tidak ditemukan di samping aplikasi ini)";
+            Btn { text: "Buka panduan"; enabled: Cfg.doc-found; clicked => { Cfg.open-doc(); } }
+        }
+    }
+
+    SectionLabel { text: "UNTUK DEVELOPER"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Kirim notifikasi";
+            Field {
+                width: 400px;
+                mono: true;
+                read-only: true;
+                text: "mokuctl notify --title \"Build selesai\" --progress 1";
+            }
+        }
+        Setting {
+            title: "Minta izin";
+            Field {
+                width: 400px;
+                mono: true;
+                read-only: true;
+                text: "mokuctl ask --title \"Jalankan?\" --command \"npm test\"";
+            }
+        }
+        Setting {
+            title: "Tambah to-do";
+            Field {
+                width: 400px;
+                mono: true;
+                read-only: true;
+                text: "mokuctl todo add \"Beli kopi\"";
+            }
+        }
+    }
+    Text {
+        text: "Kode keluar mokuctl ask: 0 disetujui, 1 ditolak, 2 waktu habis, 3 Moku tidak berjalan. Pilih teks di kotak untuk menyalinnya.";
+        font-size: 11.5px;
+        color: Theme.text3;
+        wrap: word-wrap;
+    }
+}
+
+// ---------------------------------------------------------------- Privasi
+
+export component PrivasiPage inherits Page {
+    title: "Privasi";
+    subtitle: "Moku bekerja tanpa akun. Semua data tetap di komputer ini.";
+
+    Rectangle {
+        height: 64px;
+        background: #30d15822;
+        border-radius: 14px;
+        border-width: 1px;
+        border-color: #30d15855;
+        HorizontalLayout {
+            padding: 14px;
+            spacing: 12px;
+            VerticalLayout {
+                alignment: center;
+                IconTile { glyph: "\u{E72E}"; tint: #30d158; size: 34px; }
+            }
+            VerticalLayout {
+                alignment: center;
+                spacing: 2px;
+                Text { text: "Tanpa akun, tanpa pelacakan"; font-size: 13.5px; font-weight: 600; color: Theme.text; }
+                Text { text: "Riwayat, catatan, dan pengaturan tidak pernah dikirim ke server mana pun."; font-size: 11.5px; color: Theme.text2; wrap: word-wrap; }
+            }
+        }
+    }
+
+    SectionLabel { text: "CLIPBOARD"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Simpan riwayat clipboard";
+            checked: Cfg.f.clipboard-enabled;
+            toggled(v) => { Cfg.f.clipboard-enabled = v; Cfg.commit(); }
+        }
+        Setting {
+            title: "Lupakan setelah";
+            subtitle: (Cfg.f.clipboard-keep-days == 1 || Cfg.f.clipboard-keep-days == 7 || Cfg.f.clipboard-keep-days == 30 || Cfg.f.clipboard-keep-days == 90) ? "" : "Nilai khusus dari config.toml: " + Cfg.f.clipboard-keep-days + " hari";
+            Segmented {
+                options: ["1 hari", "7 hari", "30 hari", "90 hari"];
+                index: Cfg.f.clipboard-keep-days == 1 ? 0 : Cfg.f.clipboard-keep-days == 7 ? 1 : Cfg.f.clipboard-keep-days == 30 ? 2 : Cfg.f.clipboard-keep-days == 90 ? 3 : -1;
+                selected(i) => {
+                    Cfg.f.clipboard-keep-days = i == 0 ? 1 : i == 1 ? 7 : i == 2 ? 30 : 90;
+                    Cfg.commit();
+                }
+            }
+        }
+        Setting {
+            title: "Jumlah maksimum";
+            Stepper {
+                minimum: 5; maximum: 500; step: 5; suffix: " item";
+                value: Cfg.f.clipboard-max-items;
+                edited(v) => { Cfg.f.clipboard-max-items = v; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Jangan simpan dari";
+            subtitle: "Nama program dipisah koma. Pengelola kata sandi sebaiknya masuk daftar ini.";
+            Field {
+                width: 280px;
+                text: Cfg.f.clipboard-ignore;
+                edited(t) => { Cfg.f.clipboard-ignore = t; Cfg.commit(); }
+            }
+        }
+    }
+
+    SectionLabel { text: "LAYAR"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Sembunyikan isi notifikasi saat berbagi layar";
+            checked: Cfg.f.privacy-hide-body;
+            toggled(v) => { Cfg.f.privacy-hide-body = v; Cfg.commit(); }
+        }
+    }
+
+    SectionLabel { text: "LOKASI"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Kota";
+            subtitle: "Untuk cuaca; bisa diisi manual. Hanya dikirim ke Open-Meteo saat cuaca menyala.";
+            Field {
+                width: 200px;
+                text: Cfg.f.today-city;
+                edited(t) => { Cfg.f.today-city = t; Cfg.commit(); }
+            }
+        }
+    }
+
+    SectionLabel { text: "DATA"; }
+    Card {
+        Setting {
+            first: true;
+            title: "Hapus semua data Moku";
+            subtitle: "Riwayat clipboard, shelf, to-do, dan log di folder data. Pengaturan (config.toml) tetap ada.";
+            Btn { text: "Hapus semua data Moku"; kind: "danger"; clicked => { Cfg.confirm = 1; } }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Tentang
+
+export component TentangPage inherits Page {
+    title: "Tentang";
+    subtitle: "Versi, folder data, dan pengenalan.";
+
+    Rectangle {
+        height: 226px;
+        background: Theme.card;
+        border-radius: 18px;
+        border-width: 1px;
+        border-color: Theme.line;
+        VerticalLayout {
+            alignment: center;
+            spacing: 6px;
+            HorizontalLayout {
+                alignment: center;
+                Image { source: @image-url("../assets/logo.png"); width: 76px; height: 76px; }
+            }
+            HorizontalLayout {
+                alignment: center;
+                Text { text: "Moku"; font-size: 24px; font-weight: 700; color: Theme.text; }
+            }
+            HorizontalLayout {
+                alignment: center;
+                Text { text: "Versi " + Cfg.version + " (pratinjau) · Windows 10 & 11"; font-size: 12px; color: Theme.text2; }
+            }
+            HorizontalLayout {
+                alignment: center;
+                padding-top: 8px;
+                Btn { text: "Ulangi pengenalan"; kind: "primary"; clicked => { Cfg.start-onboarding(); } }
+            }
+        }
+    }
+
+    SectionLabel { text: "TAUTAN" ; }
+    Card {
+        Setting {
+            first: true;
+            title: "Folder data";
+            subtitle: Cfg.data-dir;
+            Btn { text: "Buka"; clicked => { Cfg.open-data-folder(); } }
+        }
+        Setting {
+            title: "Berkas pengaturan";
+            subtitle: Cfg.config-path;
+        }
+        Setting {
+            title: "Plugin dan mokuctl";
+            subtitle: "Lihat halaman Plugin untuk perintah dan hook Claude Code";
+            Btn { text: "Buka"; clicked => { Cfg.page = 7; } }
+        }
+    }
+    UpdateSection { }
+    // Attribution required by NOTICE (GPL-3.0 section 7(b)): a modified version keeps these lines,
+    // which name the original project and its repository.
+    VerticalLayout {
+        padding-top: 10px;
+        spacing: 2px;
+        Text { horizontal-alignment: center; text: "Dibuat dengan Rust dan Slint · Lisensi GPL-3.0 · © 2026 Moku contributors"; font-size: 11.5px; color: Theme.text3; }
+        Text { horizontal-alignment: center; text: "Proyek resmi: github.com/dikaproject/MokuApp"; font-size: 11.5px; color: Theme.text3; }
+    }
+}

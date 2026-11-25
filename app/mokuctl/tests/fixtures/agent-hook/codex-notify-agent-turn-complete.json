@@ -1,0 +1,10 @@
+{
+  "type": "agent-turn-complete",
+  "thread-id": "019a-thread",
+  "turn-id": "turn-1",
+  "cwd": "C:\\src\\toko-online",
+  "input-messages": [
+    "tambahkan halaman rahasia"
+  ],
+  "last-assistant-message": "Selesai. Pesan rahasia."
+}

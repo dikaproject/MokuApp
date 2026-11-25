@@ -1,0 +1,14 @@
+{
+  "session_id": "019a-thread",
+  "transcript_path": "C:\\Users\\nama\\.codex\\sessions\\2026\\11\\25\\rollout-019a.jsonl",
+  "cwd": "C:\\src\\toko-online",
+  "model": "gpt-5-codex",
+  "hook_event_name": "PermissionRequest",
+  "turn_id": "turn-1",
+  "permission_mode": "default",
+  "tool_name": "apply_patch",
+  "tool_input": {
+    "command": "*** Begin Patch\n*** Update File: src/app.js\n@@\n-old\n+new\n*** End Patch",
+    "description": null
+  }
+}

@@ -1,0 +1,26 @@
+[workspace]
+resolver = "3"
+members = ["moku-core", "moku", "moku-settings", "mokuctl", "moku-setup"]
+
+[workspace.package]
+version = "0.3.0"
+edition = "2024"
+publish = false
+license = "GPL-3.0-only"
+
+[workspace.dependencies]
+moku-core = { path = "moku-core" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+toml = "1.2.2"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+windows-numerics = "0.3.1" # the version windows 0.62 itself uses
+windows-future = { version = "0.3.2", default-features = false } # the version windows 0.62 itself uses; only for the MediaTranscoder progress handler (v0.3 track R)
+windows = "0.62.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,42 @@
+import { Card, ToggleSetting, SectionLabel } from "widgets.slint";
+
+// Track H (v0.2): power and audio extras. These three switches are not part of `Form`: the Rust
+// side (src/power.rs) reads them from config.toml ([power]) and saves them on its own, so this
+// file and that one are all this feature adds to the settings app.
+export global PowerCfg {
+    in-out property <bool> charging-animation: true;
+    in-out property <bool> earbuds: true;
+    in-out property <bool> mixer: true;
+    // A toggle changed: Rust saves [power] (read-modify-write, immediately).
+    callback commit();
+    // The section was (re)built, e.g. after "Reset ke awal": Rust fills the values from config.toml.
+    callback reload();
+}
+
+export component PowerSettings inherits VerticalLayout {
+    spacing: 8px;
+    init => { PowerCfg.reload(); }
+
+    SectionLabel { text: "DAYA & AUDIO"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Animasi saat mengisi baterai";
+            subtitle: "Pil dengan baterai yang terisi saat charger dicolok. Mati: pil biasa";
+            checked: PowerCfg.charging-animation;
+            toggled(v) => { PowerCfg.charging-animation = v; PowerCfg.commit(); }
+        }
+        ToggleSetting {
+            title: "Baterai earbuds Bluetooth";
+            subtitle: "Nama dan sisa baterai saat headset tersambung, juga di tab Kontrol";
+            checked: PowerCfg.earbuds;
+            toggled(v) => { PowerCfg.earbuds = v; PowerCfg.commit(); }
+        }
+        ToggleSetting {
+            title: "Mixer volume per aplikasi";
+            subtitle: "Tombol Mixer per aplikasi di tab Kontrol";
+            checked: PowerCfg.mixer;
+            toggled(v) => { PowerCfg.mixer = v; PowerCfg.commit(); }
+        }
+    }
+}

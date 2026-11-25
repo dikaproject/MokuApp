@@ -1,0 +1,49 @@
+name: CI
+
+# Pushes to main and every pull request. (Not "every push": a branch with an open pull request
+# would build twice, once for the push and once for the pull request.)
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only: nothing here publishes or comments. (The release workflow is the only one that writes.)
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test and release build (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+        working-directory: app
+    env:
+      CARGO_TERM_COLOR: always
+      # The project keeps zero warnings.
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Rust toolchain (the version pinned in rust-toolchain.toml)
+        working-directory: .
+        run: |
+          $channel = (Select-String -Path rust-toolchain.toml -Pattern '^channel\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
+          rustup toolchain install $channel --profile minimal --no-self-update
+          rustc --version
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: app
+      - name: Test
+        run: cargo test --workspace --locked
+      - name: Release build
+        # Without MOKU_SETUP_PAYLOAD, moku-setup builds with an empty payload (packaging is
+        # release.yml's job).
+        run: cargo build --release --workspace --locked

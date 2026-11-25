@@ -1,0 +1,36 @@
+import { Card, Setting, ToggleSetting, SectionLabel } from "widgets.slint";
+
+// v0.3 track R: "Kirim ke HP". The one switch is not part of `Form`: the Rust side
+// (src/phone_page.rs) reads it from config.toml ([phone]) and saves it on its own, so this file
+// and that one are all this feature adds to the settings app. Placed at the end of the Fitur page.
+export global PhoneCfg {
+    in-out property <bool> enabled: true;
+    // The switch changed: Rust saves [phone] (read-modify-write, immediately).
+    callback commit();
+    // The section was (re)built, e.g. after "Reset ke awal": Rust fills the value from config.toml.
+    callback reload();
+}
+
+export component PhoneSettings inherits VerticalLayout {
+    spacing: 8px;
+    init => { PhoneCfg.reload(); }
+
+    SectionLabel { text: "KIRIM KE HP"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Kirim file dan teks ke dan dari HP";
+            subtitle: "Di tab Shelf: Kirim ke HP dan Terima dari HP. Pindai kode QR dengan kamera, tanpa aplikasi di HP. Server sementara hanya hidup saat sebuah transfer dibuka (paling lama 10 menit).";
+            checked: PhoneCfg.enabled;
+            toggled(v) => { PhoneCfg.enabled = v; PhoneCfg.commit(); }
+        }
+        Setting {
+            title: "Keamanan";
+            subtitle: "Tautan memakai HTTP biasa di Wi-Fi atau LAN yang sama dengan PC: jangan dipakai di Wi-Fi umum. Kodenya sekali pakai, hanya satu HP yang diterima, dan tidak ada yang bergerak sebelum kamu menekan Terima di island. File masuk ke Unduhan\\Moku.";
+        }
+        Setting {
+            title: "Windows Firewall";
+            subtitle: "Saat pertama kali, Windows akan bertanya apakah Moku boleh menerima sambungan. Pilih jaringan Pribadi. Moku tidak mengubah Firewall sendiri.";
+        }
+    }
+}

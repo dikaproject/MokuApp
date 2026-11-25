@@ -1,0 +1,247 @@
+import { Theme } from "theme.slint";
+import { Card, Setting, ToggleSetting, Field, Btn, Segmented, SectionLabel, Glyph } from "widgets.slint";
+
+// v0.3 track Q: the coding-agent hub (Codex CLI, Gemini CLI, "always allow" rules) and the
+// Windows notifications mirrored on the island. Placed in the Notifikasi page. Rust side:
+// src/q_page.rs (`[agents]` and `[notify_mirror]` of config.toml, and agent-rules.json).
+
+// One "always allow" rule, as listed: which agent and the command it covers (exactly that command;
+// prefix-mode is a rule that came from a hand-edited file and also allows plain extra words).
+export struct AgentRule { agent: string, command: string, prefix-mode: bool }
+// One allowed app of the notification mirror.
+export struct MirrorApp { name: string }
+
+export global AgentsCfg {
+    in-out property <bool> codex: true;
+    in-out property <bool> gemini: true;
+    in-out property <bool> always-allow: false;
+    in-out property <[AgentRule]> rules;
+    // Rules found in agent-rules.json that Moku did not write: they do not act until confirmed.
+    in-out property <[AgentRule]> pending;
+    // Why the last rule could not be added ("" = fine).
+    in-out property <string> problem;
+
+    // Rust re-reads config.toml and agent-rules.json (called when the page is built).
+    callback reload();
+    callback set-codex(bool);
+    callback set-gemini(bool);
+    callback set-always-allow(bool);
+    // agent index (0 Claude Code, 1 Codex, 2 Gemini CLI), the words. true = saved.
+    callback add-rule(int, string) -> bool;
+    callback remove-rule(int);
+    // "Percayai" / "Buang" for the pending rules.
+    callback accept-pending();
+    callback discard-pending();
+}
+
+export global MirrorCfg {
+    in-out property <bool> enabled;
+    in-out property <bool> pill: true;
+    in-out property <[MirrorApp]> apps;
+    in-out property <string> problem;
+
+    callback reload();
+    callback set-enabled(bool);
+    callback set-pill(bool);
+    callback add-app(string) -> bool;
+    callback remove-app(int);
+}
+
+component ListRow inherits Rectangle {
+    in property <string> glyph: "\u{E8A5}";
+    in property <string> tag;
+    in property <string> body;
+    in property <bool> mono: true;
+    in property <bool> removable: true;
+    callback removed();
+    min-height: 44px;
+    Rectangle {
+        y: 0;
+        height: 1px;
+        background: Theme.line;
+    }
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 14px;
+        padding-top: 7px;
+        padding-bottom: 7px;
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            Glyph { g: root.glyph; font-size: 14px; width: 18px; color: Theme.text3; }
+        }
+        if root.tag != "": VerticalLayout {
+            alignment: center;
+            Rectangle {
+                height: 22px;
+                border-radius: 11px;
+                background: Theme.fill2;
+                HorizontalLayout {
+                    padding-left: 9px;
+                    padding-right: 9px;
+                    Text {
+                        text: root.tag;
+                        font-size: 11px;
+                        font-weight: 600;
+                        color: Theme.text2;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 1;
+            Text {
+                text: root.body;
+                font-family: root.mono ? "Consolas" : Theme.font;
+                font-size: 12.5px;
+                color: Theme.text2;
+                overflow: elide;
+            }
+        }
+        if root.removable: VerticalLayout {
+            alignment: center;
+            Btn { text: "Hapus"; kind: "danger"; clicked => { root.removed(); } }
+        }
+    }
+}
+
+// Placed in the Notifikasi page, under the Claude Code block.
+export component AgentsSection inherits VerticalLayout {
+    spacing: 8px;
+    property <int> agent-index: 0;
+    init => { AgentsCfg.reload(); }
+
+    SectionLabel { text: "AGEN CODING LAIN"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Status sesi Codex CLI";
+            subtitle: "Pil per sesi seperti Claude Code. Perlu hook Codex: mokuctl agent-hook --agent codex (docs/agents.md)";
+            checked: AgentsCfg.codex;
+            toggled(v) => { AgentsCfg.set-codex(v); }
+        }
+        ToggleSetting {
+            title: "Status sesi Gemini CLI";
+            subtitle: "Status saja: hook Gemini CLI tidak bisa menyetujui izin (docs/agents.md)";
+            checked: AgentsCfg.gemini;
+            toggled(v) => { AgentsCfg.set-gemini(v); }
+        }
+    }
+
+    SectionLabel { text: "SELALU IZINKAN PERINTAH"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Aturan \"Selalu izinkan perintah ini\"";
+            subtitle: "Mati secara default. Kartu izin untuk perintah shell menawarkan tombolnya; perintah yang SAMA PERSIS dengan yang kamu setujui (tanpa argumen lain) lalu disetujui otomatis. Selain yang tercantum di sini, tidak ada yang pernah disetujui otomatis. Moku tidak pernah mengubah pengaturan agen itu sendiri.";
+            checked: AgentsCfg.always-allow;
+            toggled(v) => { AgentsCfg.set-always-allow(v); }
+        }
+        if AgentsCfg.pending.length > 0: Setting {
+            title: "Aturan diubah di luar Moku";
+            subtitle: "File agent-rules.json berisi aturan yang bukan Moku yang menulis. Aturan ini diabaikan sampai kamu mempercayainya di sini.";
+            Btn { text: "Percayai"; kind: "accent"; clicked => { AgentsCfg.accept-pending(); } }
+            Btn { text: "Buang"; kind: "danger"; clicked => { AgentsCfg.discard-pending(); } }
+        }
+        for r in AgentsCfg.pending: ListRow {
+            glyph: "\u{E7BA}";
+            tag: r.agent == "claude" ? "Claude Code" : r.agent == "codex" ? "Codex" : "Gemini CLI";
+            body: r.command + (r.prefix-mode ? "  (+ kata tambahan)" : "");
+            removable: false;
+        }
+        if AgentsCfg.rules.length == 0: Setting {
+            title: "Belum ada aturan";
+            subtitle: "Aturan muncul di sini setelah kamu menekan \"Selalu izinkan perintah ini\" di sebuah kartu izin, atau menambahkannya sendiri di bawah.";
+        }
+        for r[i] in AgentsCfg.rules: ListRow {
+            tag: r.agent == "claude" ? "Claude Code" : r.agent == "codex" ? "Codex" : "Gemini CLI";
+            body: r.command + (r.prefix-mode ? "  (+ kata tambahan)" : "");
+            removed => { AgentsCfg.remove-rule(i); }
+        }
+        Setting {
+            title: "Tambah aturan";
+            subtitle: AgentsCfg.problem != "" ? AgentsCfg.problem
+                : "Perintah lengkapnya, persis seperti yang akan dijalankan agen, misalnya npm test. Hanya perintah yang sama persis yang diizinkan: npm test tidak mengizinkan npm test --watch. Tanpa ; & | > $ ( ), shell, atau perintah yang menjalankan program lain (find, make, env, start ...).";
+            Segmented {
+                options: ["Claude", "Codex", "Gemini"];
+                index: root.agent-index;
+                selected(i) => { root.agent-index = i; }
+            }
+        }
+        Setting {
+            title: "Perintah";
+            adder := Field {
+                width: 220px;
+                mono: true;
+                placeholder: "npm test";
+                invalid: AgentsCfg.problem != "";
+                edited(t) => { AgentsCfg.problem = ""; }
+            }
+            Btn {
+                text: "Tambah";
+                kind: "accent";
+                // A compact pill like the other buttons (it used to take all the room the field left).
+                width: 92px;
+                clicked => {
+                    if (AgentsCfg.add-rule(root.agent-index, adder.text)) {
+                        adder.text = "";
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Placed in the Notifikasi page.
+export component MirrorSection inherits VerticalLayout {
+    spacing: 8px;
+    init => { MirrorCfg.reload(); }
+
+    SectionLabel { text: "NOTIFIKASI WINDOWS DI ISLAND"; }
+    Card {
+        ToggleSetting {
+            first: true;
+            title: "Tampilkan notifikasi aplikasi pilihan";
+            subtitle: "Pesan dari aplikasi di daftar di bawah muncul di island, dengan tombol Salin kode untuk kode OTP. Hanya disimpan di memori, tidak pernah ke disk, dan isinya tidak dicatat. Perlu izin Windows (Pengaturan Windows, Privasi & keamanan, Notifikasi); Moku tidak memunculkan jendela izin sendiri. Jika Windows menolak API ini untuk aplikasi tanpa identitas paket, tab Notifikasi menampilkan \"butuh versi Store/MSIX\".";
+            checked: MirrorCfg.enabled;
+            toggled(v) => { MirrorCfg.set-enabled(v); }
+        }
+        ToggleSetting {
+            title: "Pil untuk tiap notifikasi baru";
+            subtitle: "Matikan agar notifikasi hanya masuk ke daftar di tab Notifikasi";
+            enabled: MirrorCfg.enabled;
+            checked: MirrorCfg.pill;
+            toggled(v) => { MirrorCfg.set-pill(v); }
+        }
+        for a[i] in MirrorCfg.apps: ListRow {
+            glyph: "\u{E8BD}";
+            body: a.name;
+            mono: false;
+            removed => { MirrorCfg.remove-app(i); }
+        }
+        Setting {
+            title: "Tambah aplikasi";
+            subtitle: MirrorCfg.problem != "" ? MirrorCfg.problem
+                : "Nama persis seperti di notifikasi Windows, misalnya WhatsApp. Aplikasi lain tidak ditampilkan. Notifikasi dari browser memakai nama browsernya, jadi tidak bisa dipisah per situs. Aplikasi yang belum diizinkan muncul sebagai tombol di tab Notifikasi.";
+            adder := Field {
+                width: 220px;
+                placeholder: "Nama aplikasi";
+                invalid: MirrorCfg.problem != "";
+                edited(t) => { MirrorCfg.problem = ""; }
+            }
+            Btn {
+                text: "Tambah";
+                kind: "accent";
+                // A compact pill like the other buttons (it used to take all the room the field left).
+                width: 92px;
+                clicked => {
+                    if (MirrorCfg.add-app(adder.text)) {
+                        adder.text = "";
+                    }
+                }
+            }
+        }
+    }
+}
