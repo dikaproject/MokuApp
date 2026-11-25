@@ -114,6 +114,11 @@ transfer with the Shelf converter (R).
 
 ### Fixed
 
+- Hover to open: the input window started at the pill's top, 8 DIP below the screen's edge, so a pointer pushed against
+  the top edge (the natural way to reach a top island) was over the app behind and nothing opened until the
+  pointer came down a little. The input window now reaches up to the monitor's top edge over the width of the pill
+  (and of the panel and the split bubble), nothing wider, on every monitor, scale and DPI; a click up there counts
+  as a click on the pill. It is also put back where it belongs if the system moved it.
 - `net.rs`: a response body is read as it arrives, and an empty URL no longer reaches
   `WinHttpCrackUrl`.
 - **Review round of 2026-11-25** (all still unreleased):

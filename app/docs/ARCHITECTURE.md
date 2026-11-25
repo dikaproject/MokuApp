@@ -50,7 +50,7 @@ normal run plus `mokuctl debug …` to test a feature.
 | `services.rs` | `ServiceCtx`, service start/stop |
 | `ui/` | widget tree (`mod.rs`), layout (`layout.rs`), composite widgets (`widgets.rs`), glyphs (`icons.rs`), text editing model (`text_edit.rs`), QR encoder + `qr(text)` widget (`qr.rs`) |
 | `scene/` | composition engine (springs, morph, sprites, split bubble), D2D/DirectWrite (`gfx.rs`), `reduce.rs` (reduce motion: pure mapping, tested) |
-| `shell/` | visual / hit / tray windows, input routing, hotkeys, fullscreen hide, tray menu; keyboard focus, IME, clipboard text (`keyboard.rs`); which monitor and where on it (`monitors.rs`, pure + tested) |
+| `shell/` | visual / hit / tray windows, input routing, hotkeys, fullscreen hide, tray menu; keyboard focus, IME, clipboard text (`keyboard.rs`); which monitor and where on it (`monitors.rs`, pure + tested); the input window's rectangle and region, which reaches up to the monitor's top edge over each shape's width (`hit.rs`, pure + tested) |
 | `ipc_server.rs` | named-pipe server, `Reply` |
 | `hotkeys.rs` | the five global hotkeys in one place (v0.3 fix): `register` refuses a combination another Moku feature holds (`Outcome::Clash`) and reports one another program holds (`Taken`), `announce` raises the one pill "Pintasan ... dipakai aplikasi lain" once per feature and combination; `moku_core::hotkey::{Slot, clash}` is the same rule for the settings app |
 | `safety.rs` | `is_risky(name)` (programs and scripts are never opened from the island, shared by the downloads pill and the launcher), `reveal(path)` (Explorer with the file selected) |

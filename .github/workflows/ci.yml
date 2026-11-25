@@ -42,7 +42,18 @@ jobs:
         with:
           workspaces: app
       - name: Test
-        run: cargo test --workspace --locked
+        # A failure also becomes annotations (failed tests and panic messages), so it can be read
+        # on the run's page without opening the full log.
+        run: |
+          cargo test --workspace --locked 2>&1 | ForEach-Object { "$_" -replace '\x1b\[[0-9;]*m', '' } | Tee-Object -Variable lines
+          $code = $LASTEXITCODE
+          if ($code -ne 0) {
+            $lines | Select-String -Pattern '^test .* FAILED$|panicked at|^error(\[|:)' -Context 0,3 | Select-Object -First 25 | ForEach-Object {
+              $msg = (@($_.Line) + $_.Context.PostContext) -join '%0A'
+              Write-Output "::error title=cargo test::$msg"
+            }
+          }
+          exit $code
       - name: Release build
         # Without MOKU_SETUP_PAYLOAD, moku-setup builds with an empty payload (packaging is
         # release.yml's job).

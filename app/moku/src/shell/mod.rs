@@ -6,10 +6,13 @@
 //!   top-level window, so it also receives broadcasts (forwarded to features, see
 //!   `Registry::on_message`).
 //! - the *hit* window is an invisible top-most window moved/reshaped (SetWindowRgn) to the
-//!   island's target shape (plus the split bubble) on each change. It is the only thing that
-//!   takes mouse input; everything else on the top of the screen stays clickable.
+//!   island's target shape (plus the split bubble) on each change, and up to the top edge of the
+//!   monitor over the width of each shape (`hit.rs`: the pointer stops *at* the edge, not at the
+//!   floating pill). It is the only thing that takes mouse input; everything else on the top of
+//!   the screen stays clickable.
 //! - the *tray* window is a hidden window owning the notification-area icon and its menu.
 
+pub mod hit;
 pub mod keyboard;
 pub mod monitors;
 pub mod tray;
@@ -177,7 +180,11 @@ pub struct Shell {
     visual_shown: bool,
     hit_shown: bool,
     hook: Option<HWINEVENTHOOK>,
+    /// The island's resting rectangle on the virtual desktop (shape + bubble, x / y / w / h).
     hit_rect: (i32, i32, i32, i32),
+    /// How far the input window reaches above `hit_rect` (physical px): up to the monitor's top
+    /// edge, see [`hit`]. The window's client origin is this far above the island's shapes.
+    hit_reach: i32,
 }
 
 impl Shell {
@@ -233,6 +240,7 @@ impl Shell {
                 hit_shown: false,
                 hook: None,
                 hit_rect: (0, 0, 0, 0),
+                hit_reach: 0,
             })
         }
     }
@@ -390,34 +398,49 @@ impl Shell {
         (self.hit.is_some() && w > 0 && h > 0).then(|| monitors::IRect::new(x, y, x + w, y + h))
     }
 
-    /// Move the invisible hit-test window onto the island's target shape (+ bubble).
+    /// How far the input window reaches above the island's shapes (px): the pointer's position in
+    /// the window, less this, is its position relative to the shapes ([`hit::shape_dip`]).
+    pub fn hit_reach(&self) -> i32 {
+        self.hit_reach
+    }
+
+    /// Move the invisible hit-test window onto the island's target shape (+ bubble), reaching up
+    /// to the top edge of the monitor over the width of each shape ([`hit::layout`]).
     pub fn place_hit(&mut self, hs: &HitShape) {
         let Some(hit) = self.hit else { return };
         let mut vr = RECT::default();
         unsafe {
             let _ = GetWindowRect(self.visual, &mut vr);
         }
-        let (mx, my, mw, mh) = hs.main;
-        let right = match hs.bubble {
-            Some((bx, _, bw, _)) => bx + bw,
-            None => mx + mw,
-        };
-        let height = hs.bubble.map(|(_, by, _, bh)| (by + bh).max(my + mh)).unwrap_or(my + mh) - my;
-        let rect = (vr.left + mx, vr.top + my, right - mx, height);
+        let lay = hit::layout((vr.left, vr.top), self.target.mon.t, hs);
+        let (w, h) = (lay.window.w(), lay.window.h());
         unsafe {
             let mut p = POINT::default();
             if GetCursorPos(&mut p).is_ok() {
                 self.moved_under = Some((p.x, p.y));
             }
-            let rgn = CreateRoundRectRgn(0, -hs.notch, mw + 1, mh + 1, hs.main_radius * 2, hs.main_radius * 2);
-            if let Some((bx, by, bw, bh)) = hs.bubble {
-                let b = CreateEllipticRgn(bx - mx, by - my, bx - mx + bw + 1, by - my + bh + 1);
-                CombineRgn(Some(rgn), Some(rgn), Some(b), RGN_OR);
-                let _ = DeleteObject(b.into());
+            let mut rgn = HRGN::default();
+            for (i, part) in lay.parts.iter().enumerate() {
+                let piece = match *part {
+                    hit::Part::Round { l, t, r, b, radius } => CreateRoundRectRgn(l, t, r, b, radius * 2, radius * 2),
+                    hit::Part::Ellipse { l, t, r, b } => CreateEllipticRgn(l, t, r, b),
+                    hit::Part::Rect { l, t, r, b } => CreateRectRgn(l, t, r, b),
+                };
+                if i == 0 {
+                    rgn = piece;
+                } else {
+                    CombineRgn(Some(rgn), Some(rgn), Some(piece), RGN_OR);
+                    let _ = DeleteObject(piece.into());
+                }
             }
-            if rect != self.hit_rect {
-                let _ = SetWindowPos(hit, Some(HWND_TOPMOST), rect.0, rect.1, rect.2, rect.3, SWP_NOACTIVATE);
-                self.hit_rect = rect;
+            // Compared with where the window really is, not with what was set last: a window the
+            // system moved (a display change, a resume) is put back too.
+            self.hit_rect = (lay.home.l, lay.home.t, lay.home.w(), lay.home.h());
+            self.hit_reach = lay.reach;
+            let mut now = RECT::default();
+            let placed = GetWindowRect(hit, &mut now).is_ok() && monitors::IRect::from_rect(now) == lay.window;
+            if !placed {
+                let _ = SetWindowPos(hit, Some(HWND_TOPMOST), lay.window.l, lay.window.t, w, h, SWP_NOACTIVATE);
             }
             SetWindowRgn(hit, Some(rgn), true);
         }
@@ -461,11 +484,10 @@ fn lparam_xy(lp: LPARAM) -> (i32, i32) {
     ((lp.0 & 0xffff) as i16 as i32, ((lp.0 >> 16) & 0xffff) as i16 as i32)
 }
 
-/// Pointer position over the hit window, in DIP.
+/// Pointer position over the hit window, in DIP relative to the island's shapes (the window
+/// reaches above them, see [`hit`]).
 fn dip(a: &App, lp: LPARAM) -> (f32, f32) {
-    let (x, y) = lparam_xy(lp);
-    let s = a.scale();
-    (x as f32 / s, y as f32 / s)
+    hit::shape_dip(lparam_xy(lp), a.shell.hit_reach(), a.scale())
 }
 
 /// Windows "Animation effects" (Settings → Accessibility → Visual effects). Read on every
@@ -618,8 +640,8 @@ fn hit_msg(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> Option<LRESULT> {
                 let _ = ScreenToClient(hwnd, &mut p);
             }
             with_app(|a| {
-                let s = a.scale();
-                a.on_wheel(p.x as f32 / s, p.y as f32 / s, delta);
+                let (x, y) = hit::shape_dip((p.x, p.y), a.shell.hit_reach(), a.scale());
+                a.on_wheel(x, y, delta);
             });
             Some(LRESULT(0))
         }

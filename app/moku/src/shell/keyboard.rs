@@ -211,15 +211,16 @@ unsafe fn comp_string(himc: HIMC, which: IME_COMPOSITION_STRING) -> String {
 }
 
 /// Put the IME's composition / candidate window at the caret (`caret` in DIP, relative to the
-/// hit window's client area; `scale` = DIP â†’ px).
-pub fn place_ime(hwnd: HWND, caret: Rect, scale: f32) {
+/// island's shapes; `scale` = DIP â†’ px; `reach` = how far the hit window reaches above them, px,
+/// see `shell::hit`).
+pub fn place_ime(hwnd: HWND, caret: Rect, scale: f32, reach: i32) {
     unsafe {
         let himc = ImmGetContext(hwnd);
         if himc.is_invalid() {
             return;
         }
-        let (x, y) = ((caret.x * scale).round() as i32, (caret.y * scale).round() as i32);
-        let bottom = ((caret.y + caret.h) * scale).round() as i32;
+        let (x, y) = ((caret.x * scale).round() as i32, (caret.y * scale).round() as i32 + reach);
+        let bottom = ((caret.y + caret.h) * scale).round() as i32 + reach;
         let cf = COMPOSITIONFORM { dwStyle: CFS_POINT, ptCurrentPos: POINT { x, y }, rcArea: RECT::default() };
         let _ = ImmSetCompositionWindow(himc, &cf);
         // Candidates under the caret, never covering it.

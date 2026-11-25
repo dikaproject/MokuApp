@@ -1386,7 +1386,7 @@ impl App {
             && caret != self.ime_caret
             && let (Some(hit), Some(r)) = (self.shell.hit, caret)
         {
-            shell::keyboard::place_ime(hit, r, self.scene.scale());
+            shell::keyboard::place_ime(hit, r, self.scene.scale(), self.shell.hit_reach());
             self.ime_caret = caret;
         }
         self.arm_gc();
@@ -2024,7 +2024,7 @@ impl App {
             "activities": self.activities.iter().map(|e| serde_json::json!({
                 "id": e.id, "priority": e.priority, "transient": e.expires.is_some(), "tab": e.data.tab,
             })).collect::<Vec<_>>(),
-            "hit": { "main": [hs.main.0, hs.main.1, hs.main.2, hs.main.3], "bubble": hs.bubble.map(|b| [b.0, b.1, b.2, b.3]) },
+            "hit": { "main": [hs.main.0, hs.main.1, hs.main.2, hs.main.3], "bubble": hs.bubble.map(|b| [b.0, b.1, b.2, b.3]), "reach": self.shell.hit_reach() },
             "actions": self.main_hits.iter().map(|h| h.action.clone()).collect::<Vec<_>>(),
             "scale": self.scene.scale(),
             "animating": self.scene.animating(),
