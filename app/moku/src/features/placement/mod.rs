@@ -10,6 +10,10 @@
 //!   heads for the area it covers without aiming at it ([`aside`]);
 //! * **hide until the top edge** (`island.hide_until_edge`): it appears when the pointer rests on
 //!   the top edge or something new arrives ([`edge`]);
+//! * **hide when idle** (`island.hide_when_idle`): the same machine, but "busy" is *anything in the pill*
+//!   (music, a timer, a notification ...: `App::top_priority() > 0`) or an open panel / sheet; it hides
+//!   [`edge::IDLE_HOLD_MS`] after the last activity and the top edge reveals it meanwhile. If both flags are
+//!   on, "always" wins ([`HideMode`]);
 //! * both away moves use `App::set_away`: compositor animations that follow Moku's reduce-motion
 //!   setting (`scene::reduce`), with the input window hidden so clicks reach what is underneath.
 //!
@@ -28,7 +32,7 @@ pub mod edge;
 use std::time::{Duration, Instant};
 
 use moku_core::apps;
-use moku_core::config::{MonitorChoice, MoveAside};
+use moku_core::config::{HideMode, MonitorChoice, MoveAside};
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
 
 use self::aside::{Aside, Sample, Side, State};
@@ -216,11 +220,38 @@ fn ui_open(app: &App) -> bool {
     matches!(app.mode, Mode::Panel | Mode::Sheet) || app.focused_input().is_some()
 }
 
-/// "Hide until the top edge" must not hide what the user may need to answer: the panel or a sheet is
-/// open, something with priority 80 (a notification) or more is on, or the pill has a button / an
-/// action of its own ([`App::pill_is_actionable`]).
-fn edge_busy(app: &App) -> bool {
-    pure_edge_busy(matches!(app.mode, Mode::Panel | Mode::Sheet), app.top_priority(), || app.pill_is_actionable())
+/// What keeps the island up in a hide mode (see [`pure_hide_busy`]).
+fn hide_busy(app: &App, mode: HideMode) -> bool {
+    pure_hide_busy(mode, matches!(app.mode, Mode::Panel | Mode::Sheet), app.top_priority(), || app.pill_is_actionable())
+}
+
+/// [`pure_edge_busy`] or [`pure_idle_busy`], by mode; `Off` hides nothing, so nothing is kept.
+/// `actionable` is asked only by "always", and only when the rest did not decide.
+pub fn pure_hide_busy(mode: HideMode, ui: bool, top: u8, actionable: impl FnOnce() -> bool) -> bool {
+    match mode {
+        HideMode::Off => false,
+        HideMode::WhenIdle => pure_idle_busy(ui, top),
+        HideMode::Always => pure_edge_busy(ui, top, actionable),
+    }
+}
+
+/// "Hide when idle": anything in the pill (priority above 0: music playing or paused with its pill still
+/// up, the timer / focus / break / stopwatch, a download, charging, a call, a notification, a card ...) or an
+/// open panel / sheet keeps the island up. Only the idle clock (0) lets it hide.
+pub fn pure_idle_busy(ui: bool, top: u8) -> bool {
+    ui || top > 0
+}
+
+/// How long the island stays up after `busy` ended, by mode.
+pub fn busy_hold_ms(mode: HideMode) -> u64 {
+    if mode == HideMode::WhenIdle { edge::IDLE_HOLD_MS } else { edge::BUSY_HOLD_MS }
+}
+
+/// Is the island hidden *and* watching the top edge? Only then the pointer near the top needs the
+/// fast look ([`poll_ms`]); while it is shown (an activity keeps it up, the pointer may sit in a
+/// browser's tab strip) the hide decision is slow anyway.
+pub fn edge_waiting(mode: HideMode, edge_shown: bool) -> bool {
+    mode != HideMode::Off && !edge_shown
 }
 
 /// [`edge_busy`] without the app: `ui` = panel or sheet open, `top` = priority of the pill's
@@ -259,9 +290,11 @@ fn sample(app: &mut App, s: Sample) {
     }
     let Some(home) = app.home_rect() else { return };
     let (mon, scale, busy) = (app.monitor_rect(), app.scale(), busy(app));
-    let edge_busy = isl.hide_until_edge && edge_busy(app);
+    let mode = isl.hide_mode();
+    let hides = mode != HideMode::Off;
+    let edge_busy = hides && hide_busy(app, mode);
     // A monitor above the island's: the pointer crosses the top edge at once, so the reveal band is wider.
-    let above = isl.hide_until_edge && {
+    let above = hides && {
         let rects: Vec<IRect> = app.monitors().iter().map(|m| m.rect).collect();
         edge::monitor_above(&rects, mon, edge::zone_x(home, scale))
     };
@@ -270,7 +303,7 @@ fn sample(app: &mut App, s: Sample) {
     let st = app.state_mut::<Placement>();
     let news = news_now > st.news_seen;
     st.news_seen = news_now;
-    let edge_shown = if isl.hide_until_edge { st.edge.step(edge::In { s, home, mon, scale, news, busy: edge_busy, above }) } else { true };
+    let edge_shown = if hides { st.edge.step(edge::In { s, home, mon, scale, news, busy: edge_busy, busy_hold_ms: busy_hold_ms(mode), above }) } else { true };
     let aside_state = if isl.move_aside != MoveAside::Off { st.aside.step(s, home, scale, eligible) } else { State::Home };
     app.set_away(compose(edge_shown, aside_state, isl.move_aside, home, scale));
 }
@@ -306,8 +339,10 @@ fn tick(app: &mut App) {
         // "Away" here is move aside's: an island that edge-hiding keeps out of sight has nothing to
         // watch for near itself (the edge zone has its own rate in `poll_ms`).
         let aside_away = matches!(st.aside.state(), State::Away(_));
+        let edge_shown = st.edge.shown();
         let isl = &app.config().island;
-        poll_ms(isl.move_aside != MoveAside::Off, isl.hide_until_edge, s, app.home_rect(), app.monitor_rect(), app.scale(), aside_away, for_ms >= REST_AFTER_MS)
+        let waiting = edge_waiting(isl.hide_mode(), edge_shown);
+        poll_ms(isl.move_aside != MoveAside::Off, waiting, s, app.home_rect(), app.monitor_rect(), app.scale(), aside_away, for_ms >= REST_AFTER_MS)
     } else {
         POLL_FAR_MS
     };
@@ -346,7 +381,7 @@ fn sync(app: &mut App) {
     if isl.move_aside == MoveAside::Off {
         st.aside.reset();
     }
-    match (isl.hide_until_edge, st.edge_on) {
+    match (isl.hide_mode() != HideMode::Off, st.edge_on) {
         (true, false) => {
             st.edge = Edge::default();
             st.edge_on = true;
@@ -404,6 +439,12 @@ fn on_event(app: &mut App, ev: &AppEvent) {
         AppEvent::ForegroundChanged => update_rule(app),
         AppEvent::Visibility(true) => wake(app),
         AppEvent::Visibility(false) => sleep(app),
+        // The pill went from the idle clock to an activity: "hide when idle" shows the island now, not at the next poll.
+        AppEvent::ActivityStarted => {
+            if app.config().island.hide_mode() == HideMode::WhenIdle {
+                refresh_now(app);
+            }
+        }
         AppEvent::PanelOpened | AppEvent::PanelClosed | AppEvent::SheetOpened(_) | AppEvent::SheetClosed(_) => refresh_now(app),
         AppEvent::DisplayChanged => {
             // The monitors changed (or the island moved): the old samples and rectangles are stale.
@@ -462,7 +503,7 @@ fn on_action(app: &mut App, ev: &ActionEvent) {
 /// a fake pointer's since its first sample. Switching between the two starts them afresh, or old
 /// times from the other clock would swallow the new samples.
 fn reset_clock(app: &mut App) {
-    let on = app.config().island.hide_until_edge;
+    let on = app.config().island.hide_mode() != HideMode::Off;
     let st = app.state_mut::<Placement>();
     st.aside.reset();
     st.follow.forget_candidate();
@@ -503,7 +544,10 @@ pub fn debug_json(app: &App) -> serde_json::Value {
         "fake_pointer": st.fake.as_ref().map(|f| serde_json::json!({ "x": f.x, "y": f.y, "t": f.t })),
         "aside": match st.aside.state() { State::Home => "home".to_string(), State::Away(Side::Left) => "away-left".into(), State::Away(Side::Right) => "away-right".into() },
         "verdict": format!("{:?}", st.aside.last).to_lowercase(),
-        "edge_shown": st.edge.shown() || !isl.hide_until_edge,
+        "hide_mode": match isl.hide_mode() { HideMode::Off => "off", HideMode::WhenIdle => "idle", HideMode::Always => "always" },
+        "hide_when_idle": isl.hide_when_idle,
+        "edge_shown": st.edge.shown() || isl.hide_mode() == HideMode::Off,
+        "idle": app.top_priority() == 0,
         "followed": st.follow.settled(),
         "fake_foreground": st.fake_fg.is_some(),
         "monitors": app.monitors().iter().map(|m| serde_json::json!({ "name": m.name, "rect": [m.rect.l, m.rect.t, m.rect.r, m.rect.b], "dpi": m.dpi, "primary": m.primary })).collect::<Vec<_>>(),
@@ -632,5 +676,111 @@ mod tests {
         assert_eq!(parse_fake_monitors("junk;0x0@0,0;1920x1080").len(), 0);
         assert_eq!(parse_fake_monitors("").len(), 0);
         assert_eq!(parse_fake_monitors("100x100@0,0*99")[0].dpi, 1.0, "an absurd dpi is ignored");
+    }
+
+    #[test]
+    fn hide_when_idle_is_busy_for_any_activity_or_an_open_panel() {
+        // Only the idle clock (0) with nothing open hides.
+        assert!(!pure_idle_busy(false, priority::IDLE));
+        // Music (playing, or paused with its pill still on the island).
+        assert!(pure_idle_busy(false, priority::MUSIC));
+        // The focus / Pomodoro timer, its break, a plain countdown and the stopwatch are all `timer.run` / `timer.watch` at TIMER.
+        assert!(pure_idle_busy(false, priority::TIMER));
+        // Everything else that can be in the pill.
+        for p in [priority::HEADS_UP, priority::PROGRESS, priority::MEETING, priority::WARNING, priority::OSD, priority::NOTIFICATION, priority::DUE, priority::AI_CARD, 1] {
+            assert!(pure_idle_busy(false, p), "priority {p}");
+        }
+        // The panel or a sheet is open, whatever the pill says.
+        assert!(pure_idle_busy(true, priority::IDLE));
+        assert!(pure_idle_busy(true, priority::MUSIC));
+        // The old mode is unchanged: music alone does not keep it up there.
+        assert!(!pure_hide_busy(HideMode::Always, false, priority::MUSIC, || false));
+        assert!(pure_hide_busy(HideMode::Always, false, priority::NOTIFICATION, || false));
+        assert!(pure_hide_busy(HideMode::Always, true, 0, || false));
+        assert!(pure_hide_busy(HideMode::WhenIdle, false, priority::MUSIC, || panic!("idle mode never asks")));
+        assert!(!pure_hide_busy(HideMode::WhenIdle, false, 0, || panic!("idle mode never asks")));
+        assert!(!pure_hide_busy(HideMode::Off, true, priority::AI_CARD, || true), "off: nothing hides, nothing to keep");
+        assert_eq!(busy_hold_ms(HideMode::WhenIdle), edge::IDLE_HOLD_MS);
+        assert_eq!(busy_hold_ms(HideMode::Always), edge::BUSY_HOLD_MS);
+    }
+
+    /// The island's visibility over time in "hide when idle", with the activity list driving it: the
+    /// real `Stack` (the same priorities the features use), the pointer far away all along.
+    #[test]
+    fn hide_when_idle_follows_the_activity_list_over_time() {
+        use crate::activity::Stack;
+        use std::time::{Duration, Instant};
+
+        let t0 = Instant::now();
+        let mut stack: Stack<()> = Stack::default();
+        let mut edge = Edge::default();
+        let mut now = 0u64;
+        // Samples every 200 ms until `until`, returning whether the island is shown at the end.
+        let mut run = |stack: &mut Stack<()>, until: u64, ui: bool| {
+            let mut shown = false;
+            while now <= until {
+                stack.expire(t0 + Duration::from_millis(now));
+                let top = stack.top().map_or(0, |e| e.priority);
+                let i = edge::In {
+                    s: aside::Sample { x: 300, y: 600, t: now, down: false },
+                    home: HOME,
+                    mon: MON,
+                    scale: 1.0,
+                    news: false,
+                    busy: pure_hide_busy(HideMode::WhenIdle, ui, top, || false),
+                    busy_hold_ms: busy_hold_ms(HideMode::WhenIdle),
+                    above: false,
+                };
+                shown = edge.step(i);
+                now += 200;
+            }
+            shown
+        };
+        // Idle: hidden.
+        assert!(!run(&mut stack, 3000, false));
+        // Music starts: shown at once and for as long as it plays.
+        stack.set("media.music", priority::MUSIC, None, ());
+        assert!(run(&mut stack, 3200, false));
+        assert!(run(&mut stack, 60_000, false));
+        // The Pomodoro timer joins, then the music stops: the timer keeps it up.
+        stack.set("timer.run", priority::TIMER, None, ());
+        stack.remove("media.music");
+        assert!(run(&mut stack, 120_000, false));
+        // Focus ends into the break: the same `timer.run` activity stays (never a gap) and a "done" alert comes and goes.
+        stack.set("timer.done", priority::DUE, Some(t0 + Duration::from_millis(125_000)), ());
+        assert!(run(&mut stack, 124_000, false));
+        // The timer is reset: 2 s of grace, then hidden.
+        stack.remove("timer.run");
+        assert!(run(&mut stack, 126_000, false), "the done alert expired at 125 s, the hold runs to about 126.8 s");
+        assert!(!run(&mut stack, 128_000, false));
+        // A notification (5 s) shows it, and it hides again 2 s after it expired.
+        stack.set("notify.pill", priority::NOTIFICATION, Some(t0 + Duration::from_millis(133_000)), ());
+        assert!(run(&mut stack, 132_000, false));
+        assert!(run(&mut stack, 134_600, false), "the hold runs to 134.8 s");
+        assert!(!run(&mut stack, 136_000, false));
+        // A paused player whose pill is gone is idle; the panel open keeps it up even then.
+        stack.set("media.music", priority::MUSIC, None, ());
+        assert!(run(&mut stack, 140_000, false));
+        stack.remove("media.music");
+        assert!(run(&mut stack, 141_000, true), "panel open");
+        assert!(run(&mut stack, 150_000, true));
+        assert!(!run(&mut stack, 156_000, false), "closed and nothing going on");
+    }
+
+    #[test]
+    fn the_edge_poll_is_fast_only_while_the_island_waits_for_the_edge() {
+        // Waiting (hidden, any hide mode): the fast edge rate near the top.
+        assert!(edge_waiting(HideMode::WhenIdle, false));
+        assert!(edge_waiting(HideMode::Always, false));
+        // Shown (music playing in idle mode, a pointer in the browser's tab strip): nothing to wait for.
+        assert!(!edge_waiting(HideMode::WhenIdle, true));
+        assert!(!edge_waiting(HideMode::Always, true));
+        assert!(!edge_waiting(HideMode::Off, false));
+        assert_eq!(poll_ms(false, edge_waiting(HideMode::WhenIdle, false), s(960, 30), Some(HOME), MON, 1.0, false, false), POLL_EDGE_MS);
+        // Idle-hidden behaves like edge-hidden: the same rates, a resting pointer far from the top is looked at seldom.
+        assert_eq!(poll_ms(false, true, s(300, 600), Some(HOME), MON, 1.0, false, true), POLL_REST_MS);
+        assert_eq!(poll_ms(false, true, s(300, 600), Some(HOME), MON, 1.0, false, false), POLL_SLOW_MS);
+        // Shown and the pointer rests near the top: the seldom rate, not 25 looks a second.
+        assert_eq!(poll_ms(false, edge_waiting(HideMode::WhenIdle, true), s(960, 30), Some(HOME), MON, 1.0, false, true), POLL_REST_MS);
     }
 }

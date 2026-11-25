@@ -8,6 +8,13 @@ the section of the tagged version as the GitHub release notes.
 
 ### Added
 
+- **Island mode "hide when idle"** (`island.hide_when_idle`): the island hides while nothing is going on
+  (only the clock) and shows by itself whenever anything is in the pill (music, a timer or focus session,
+  a download, charging, a notification ...); it hides again 2 s after the last activity. While hidden,
+  resting the pointer on the top edge near it brings it back, as with "hide until the top edge". The
+  Island page now has one choice, "Sembunyikan island": Mati | Saat idle | Selalu sampai tepi atas, stored in
+  `hide_until_edge` and the new `hide_when_idle` (both default `false`; existing files keep working, and
+  both on means "Selalu"). `mokuctl debug state` shows `placement.hide_mode` and `placement.hide_when_idle`.
 - **Code signing policy and privacy policy** (`CODE_SIGNING_POLICY.md`, `PRIVACY.md`), linked from the
   README and from the notes of every release: what is signed, who approves a signing request, how releases
   are built, and which network service Moku contacts, when, and what it sends (nothing unless a feature

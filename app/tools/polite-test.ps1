@@ -164,6 +164,48 @@ try {
     $s = State
     Check "turning the option off shows the island" ($s.away -eq "home")
 
+    # ---- hide when idle -------------------------------------------------------------------------------------------
+    # The pointer is fake with a virtual clock: the machine only moves on samples, so every "wait" is a sample with --dt.
+    SetCfg "[island]`nhide_when_idle = true`n"
+    $s = State; $hm = $s.home
+    $null = Cursor 300 600 16
+    $s = State
+    Check "idle: hidden, clicks go through" ($s.away -eq "hide" -and $s.passthrough -eq $true -and $s.placement.hide_mode -eq "idle") "away=$($s.away) mode=$($s.placement.hide_mode)"
+    $null = & $ctl debug activity polite.busy 40 "Lagu"
+    Start-Sleep -Milliseconds 300
+    $s = State
+    Check "any activity (music priority) shows it at once" ($s.away -eq "home" -and -not $s.passthrough) "away=$($s.away)"
+    $null = Cursor 300 600 5000
+    $s = State
+    Check "... and keeps it up while the activity lasts" ($s.away -eq "home") "away=$($s.away)"
+    $null = & $ctl debug clear-activity polite.busy
+    $null = Cursor 300 600 100; $null = Cursor 300 600 1000
+    $s = State
+    Check "after the activity it holds about 2 s (no blinking between pills)" ($s.away -eq "home") "away=$($s.away)"
+    $null = Cursor 300 600 1500
+    $s = State
+    Check "... then hides again" ($s.away -eq "hide" -and $s.passthrough -eq $true) "away=$($s.away)"
+    $cx = [int](($hm[0] + $hm[2]) / 2)
+    foreach ($i in 0..4) { $null = Cursor $cx 0 40 }
+    $s = State
+    Check "idle-hidden: resting on the top edge near it shows it" ($s.away -eq "home" -and -not $s.passthrough) "away=$($s.away)"
+    $null = Cursor 300 600 100; $null = Cursor 300 600 1700; $null = Cursor 300 600 600
+    $s = State
+    Check "... and it hides once the pointer is away and nothing is going on" ($s.away -eq "hide") "away=$($s.away)"
+    $null = & $ctl debug open-tab media; Start-Sleep -Milliseconds 300
+    $s = State
+    Check "an open panel shows it" ($s.away -eq "home" -and $s.mode -eq "panel") "away=$($s.away) mode=$($s.mode)"
+    $null = & $ctl debug close
+    # Both flags on in a hand-edited file: "always" wins, so music does not keep it up.
+    SetCfg "[island]`nhide_until_edge = true`nhide_when_idle = true`n"
+    $null = & $ctl debug activity polite.busy 40 "Lagu"
+    $null = Cursor 300 600 16; $null = Cursor 300 600 4500
+    $s = State
+    Check "both flags: 'always' wins (music does not keep it up)" ($s.away -eq "hide" -and $s.placement.hide_mode -eq "always") "away=$($s.away) mode=$($s.placement.hide_mode)"
+    $null = & $ctl debug clear-activity polite.busy
+    $null = & $ctl debug cursor real
+    SetCfg ""
+
     # ---- per-app hide rule -------------------------------------------------------------------------------------
     SetCfg "[island]`nhide_apps = [`"chrome.exe`", `"Code.exe`"]`n"
     foreach ($c in @(@("chrome.exe", $true), @("notepad.exe", $false), @("CODE", $true), @("C:\Program Files\Google\Chrome\chrome.exe", $true), @("chrome2.exe", $false))) {

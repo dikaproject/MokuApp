@@ -1,7 +1,9 @@
 //! Hide until the top edge: the island stays out of sight until the pointer touches the top edge
 //! of its monitor near it, or something new arrives (a notification, a timer, a new music
 //! session), or the user opens the panel. It hides again once the pointer has been away for a
-//! while. Pure and unit-tested; fed with the same pointer samples as move-aside.
+//! while. "Hide when idle" (`island.hide_when_idle`) is the same machine with a different `busy`:
+//! anything in the pill keeps it up, and it hides [`IDLE_HOLD_MS`] after the last activity. Pure and
+//! unit-tested; fed with the same pointer samples as move-aside.
 
 use super::aside::Sample;
 use crate::shell::monitors::IRect;
@@ -14,6 +16,9 @@ pub const NEWS_HOLD_MS: u64 = 4000;
 pub const TOUCH_HOLD_MS: u64 = 1500;
 /// After the panel closed / something urgent went, it stays at least this long (ms).
 pub const BUSY_HOLD_MS: u64 = 1200;
+/// In "hide when idle": after the last activity (a pill about to be replaced, a track change) it stays
+/// at least this long (ms), so the island does not blink between two pills.
+pub const IDLE_HOLD_MS: u64 = 2000;
 /// Away from the island this long (ms) before it hides again.
 pub const FAR_MS: u64 = 900;
 /// The reveal zone along the top edge reaches this many DIP beyond the island's sides ...
@@ -36,6 +41,8 @@ pub struct In {
     pub news: bool,
     /// The panel / a sheet is open or something urgent is on: never hide.
     pub busy: bool,
+    /// How long (ms) it stays up after `busy` ended: [`BUSY_HOLD_MS`], or [`IDLE_HOLD_MS`] in "hide when idle".
+    pub busy_hold_ms: u64,
     /// Another monitor sits above this one at the island: the pointer leaves through the top edge
     /// at once, so the reveal band is [`ABOVE_BAND_PX`] thick instead of one pixel.
     pub above: bool,
@@ -92,7 +99,7 @@ impl Edge {
         let (s, t) = (i.s, i.s.t);
         if i.busy {
             self.shown = true;
-            self.hold_until = self.hold_until.max(t + BUSY_HOLD_MS);
+            self.hold_until = self.hold_until.max(t + i.busy_hold_ms);
             self.top_since = None;
             self.far_since = None;
             return true;
@@ -137,7 +144,7 @@ mod tests {
     const HOME: IRect = IRect::new(900, 8, 1020, 44);
 
     fn input(x: i32, y: i32, t: u64) -> In {
-        In { s: Sample { x, y, t, down: false }, home: HOME, mon: MON, scale: 1.0, news: false, busy: false, above: false }
+        In { s: Sample { x, y, t, down: false }, home: HOME, mon: MON, scale: 1.0, news: false, busy: false, busy_hold_ms: BUSY_HOLD_MS, above: false }
     }
 
     #[test]
@@ -269,7 +276,7 @@ mod tests {
         let mut e = Edge::default();
         let home = IRect::new(1800, 16, 2040, 88);
         for t in (0..400).step_by(40) {
-            let mut i = In { s: Sample { x: 1920, y: 5, t, down: false }, home, mon: IRect::new(0, 0, 3840, 2160), scale: 2.0, news: false, busy: false, above: true };
+            let mut i = In { s: Sample { x: 1920, y: 5, t, down: false }, home, mon: IRect::new(0, 0, 3840, 2160), scale: 2.0, news: false, busy: false, busy_hold_ms: BUSY_HOLD_MS, above: true };
             i.above = true;
             e.step(i);
         }
@@ -298,7 +305,7 @@ mod tests {
         // 200 %: the edge row is 2 px, the zone 2x wider.
         let home = IRect::new(1800, 16, 2040, 88);
         let mut e = Edge::default();
-        let i = |x, y, t| In { s: Sample { x, y, t, down: false }, home, mon: IRect::new(0, 0, 3840, 2160), scale: 2.0, news: false, busy: false, above: false };
+        let i = |x, y, t| In { s: Sample { x, y, t, down: false }, home, mon: IRect::new(0, 0, 3840, 2160), scale: 2.0, news: false, busy: false, busy_hold_ms: BUSY_HOLD_MS, above: false };
         for t in (0..200).step_by(40) {
             e.step(i(1920, 2, t));
         }
@@ -307,5 +314,70 @@ mod tests {
         assert_eq!(zone_x(IRect::new(900, 8, 1020, 44), 1.0), (800, 1120));
         // A tiny island still gets a usable zone.
         assert_eq!(zone_x(IRect::new(950, 8, 970, 44), 1.0), (840, 1080));
+    }
+
+    #[test]
+    fn idle_mode_keeps_it_up_for_two_seconds_after_the_last_activity() {
+        let idle = |x, y, t| In { busy_hold_ms: IDLE_HOLD_MS, ..input(x, y, t) };
+        let mut e = Edge::default();
+        // Something is going on (music): shown at once, however far the pointer is.
+        let mut i = idle(300, 500, 0);
+        i.busy = true;
+        assert!(e.step(i));
+        i.s.t = 30_000;
+        assert!(e.step(i), "stays up for as long as it lasts");
+        // It ends at t = 30 000: the hold (2 s) decides, the pointer has been away all along.
+        assert!(e.step(idle(300, 500, 30_100)));
+        assert!(e.step(idle(300, 500, 31_000)));
+        assert!(e.step(idle(300, 500, 31_999)), "2 s hold not over");
+        assert!(!e.step(idle(300, 500, 32_000)), "idle for 2 s: hidden again");
+        // And it stays hidden while idle.
+        for t in (32_000..40_000).step_by(200) {
+            assert!(!e.step(idle(300, 500, t)));
+        }
+    }
+
+    #[test]
+    fn idle_mode_does_not_flicker_when_one_pill_replaces_another() {
+        let idle = |t, busy| In { busy, busy_hold_ms: IDLE_HOLD_MS, ..input(300, 500, t) };
+        let mut e = Edge::default();
+        assert!(e.step(idle(0, true)));
+        // A track change / the next pill: idle for a moment (about 1.5 s), then busy again.
+        for t in (100..1600).step_by(100) {
+            assert!(e.step(idle(t, false)), "t = {t}");
+        }
+        assert!(e.step(idle(1700, true)));
+        // The hold starts over from the last busy sample.
+        for t in (1800..3700).step_by(100) {
+            assert!(e.step(idle(t, false)), "t = {t}");
+        }
+        assert!(!e.step(idle(3700, false)));
+    }
+
+    #[test]
+    fn idle_mode_waits_for_the_pointer_to_leave_and_reveals_like_the_edge_mode() {
+        let idle = |x, y, t| In { busy_hold_ms: IDLE_HOLD_MS, ..input(x, y, t) };
+        // Idle and hidden: resting on the top edge near the island reveals it (same dwell).
+        let mut e = Edge::default();
+        assert!(!e.step(idle(960, 0, 0)));
+        assert!(!e.step(idle(960, 0, 119)));
+        assert!(e.step(idle(960, 0, 120)));
+        // Hovering it keeps it up; away from it, it hides after the hold and the away time.
+        for t in (200..5000).step_by(100) {
+            assert!(e.step(idle(960, 30, t)));
+        }
+        assert!(e.step(idle(960, 400, 5000)));
+        assert!(e.step(idle(960, 400, 5899)));
+        assert!(!e.step(idle(960, 400, 5900)));
+        // An activity that ends while the pointer is on the island: it stays until the pointer leaves.
+        let mut e = Edge::default();
+        let mut i = idle(960, 30, 0);
+        i.busy = true;
+        assert!(e.step(i));
+        for t in (100..10_000).step_by(100) {
+            assert!(e.step(idle(960, 30, t)), "pointer near, t = {t}");
+        }
+        assert!(e.step(idle(960, 400, 10_000)));
+        assert!(!e.step(idle(960, 400, 10_900)));
     }
 }

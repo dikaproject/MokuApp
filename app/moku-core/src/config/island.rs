@@ -54,6 +54,18 @@ pub enum MonitorChoice {
     Named(String),
 }
 
+/// When the island hides itself (`island.hide_until_edge` + `island.hide_when_idle`, one choice in
+/// the settings): [`Island::hide_mode`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HideMode {
+    /// Always shown.
+    Off,
+    /// Hidden while idle (only the clock), shown while anything is going on.
+    WhenIdle,
+    /// Hidden until the pointer touches the top edge (or something new arrives), music or not.
+    Always,
+}
+
 section! {
     /// `[island]`
     pub struct Island in "island" {
@@ -72,8 +84,12 @@ section! {
         offset_x: i32 = 0 => super::range(-2000, 2000),
         /// Step out of the way of a pointer that heads for the area under the island.
         move_aside: MoveAside = MoveAside::Off,
-        /// Stay hidden until the pointer touches the top edge (or something new arrives).
+        /// Stay hidden until the pointer touches the top edge (or something new arrives), even
+        /// while music plays. Wins over `hide_when_idle` when both are on ([`Island::hide_mode`]).
         hide_until_edge: bool = false,
+        /// Hide while nothing is going on (only the clock); shown while anything is in the pill
+        /// (music, a timer, a notification ...). The pointer on the top edge reveals it meanwhile.
+        hide_when_idle: bool = false,
         /// Process names (`chrome.exe`) of apps in front of which the island hides.
         hide_apps: Vec<String> = vec![],
         /// Apps whose media sessions are ignored: their `SourceAppUserModelId` (`Spotify.exe`) or a
@@ -98,9 +114,24 @@ impl Island {
         }
     }
 
+    /// The two hide flags as one choice; both on (a hand-edited file) reads as [`HideMode::Always`].
+    pub fn hide_mode(&self) -> HideMode {
+        match (self.hide_until_edge, self.hide_when_idle) {
+            (true, _) => HideMode::Always,
+            (false, true) => HideMode::WhenIdle,
+            (false, false) => HideMode::Off,
+        }
+    }
+
+    /// Pick one choice: sets both flags so that exactly the chosen one is on.
+    pub fn set_hide_mode(&mut self, mode: HideMode) {
+        self.hide_until_edge = mode == HideMode::Always;
+        self.hide_when_idle = mode == HideMode::WhenIdle;
+    }
+
     /// Does anything need the pointer position (polling)?
     pub fn watches_pointer(&self) -> bool {
-        self.monitor_choice() == MonitorChoice::Cursor || self.move_aside != MoveAside::Off || self.hide_until_edge
+        self.monitor_choice() == MonitorChoice::Cursor || self.move_aside != MoveAside::Off || self.hide_mode() != HideMode::Off
     }
 }
 
@@ -146,5 +177,58 @@ mod tests {
         let (c, w) = Config::parse("[island]\nmonitor = \"\"\nanchor = \"middle\"\noffset_x = 99999\nmove_aside = 3\n");
         assert_eq!(w.len(), 4, "{w:?}");
         assert_eq!(c.island, Island::default());
+    }
+
+    #[test]
+    fn hide_mode_reads_the_two_bools_and_always_wins() {
+        let mk = |edge, idle| Island { hide_until_edge: edge, hide_when_idle: idle, ..Island::default() };
+        assert_eq!(mk(false, false).hide_mode(), HideMode::Off);
+        assert_eq!(mk(false, true).hide_mode(), HideMode::WhenIdle);
+        assert_eq!(mk(true, false).hide_mode(), HideMode::Always);
+        // A hand-edited file with both on: "always hide until the edge" wins.
+        assert_eq!(mk(true, true).hide_mode(), HideMode::Always);
+        // Either one makes the pointer matter (reveal at the top edge).
+        assert!(mk(false, true).watches_pointer());
+        assert!(mk(true, false).watches_pointer());
+        assert!(!mk(false, false).watches_pointer());
+    }
+
+    #[test]
+    fn setting_a_hide_mode_sets_both_bools_exclusively() {
+        let mut i = Island::default();
+        i.set_hide_mode(HideMode::WhenIdle);
+        assert_eq!((i.hide_until_edge, i.hide_when_idle), (false, true));
+        i.set_hide_mode(HideMode::Always);
+        assert_eq!((i.hide_until_edge, i.hide_when_idle), (true, false));
+        i.set_hide_mode(HideMode::Off);
+        assert_eq!((i.hide_until_edge, i.hide_when_idle), (false, false));
+        // Leaving a hand-edited "both" state for another choice clears the other flag too.
+        let mut i = Island { hide_until_edge: true, hide_when_idle: true, ..Island::default() };
+        i.set_hide_mode(HideMode::WhenIdle);
+        assert_eq!(i.hide_mode(), HideMode::WhenIdle);
+        assert!(!i.hide_until_edge);
+    }
+
+    #[test]
+    fn hide_when_idle_defaults_off_round_trips_and_old_files_keep_working() {
+        assert!(!Island::default().hide_when_idle);
+        // An old config.toml without the key: the new flag is off and the old one is read as before.
+        let (c, w) = Config::parse("[island]\nhide_until_edge = true\n");
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!((c.island.hide_until_edge, c.island.hide_when_idle, c.island.hide_mode()), (true, false, HideMode::Always));
+        let (c, w) = Config::parse("[island]\nhide_when_idle = true\n");
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!((c.island.hide_until_edge, c.island.hide_when_idle, c.island.hide_mode()), (false, true, HideMode::WhenIdle));
+        assert!(c.island.watches_pointer());
+        let (back, w) = Config::parse(&c.to_toml());
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!(back, c);
+        // Both on in a hand-edited file survive a round trip untouched; "always" is what applies.
+        let (c, _) = Config::parse("[island]\nhide_until_edge = true\nhide_when_idle = true\n");
+        assert_eq!(Config::parse(&c.to_toml()).0.island.hide_mode(), HideMode::Always);
+        // A wrong type falls back to the default with a warning.
+        let (c, w) = Config::parse("[island]\nhide_when_idle = \"yes\"\n");
+        assert_eq!(w.len(), 1, "{w:?}");
+        assert!(!c.island.hide_when_idle);
     }
 }

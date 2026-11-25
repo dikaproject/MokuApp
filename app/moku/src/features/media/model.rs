@@ -251,6 +251,27 @@ mod tests {
         m
     }
 
+    /// "Hide when idle" asks the activity list: the music pill is there (priority MUSIC) exactly while
+    /// `has_music()` is, so a playing and a paused player keep the island up and a gone session lets it hide.
+    #[test]
+    fn music_keeps_the_idle_island_up_while_it_has_a_pill_and_releases_it_with_the_session() {
+        let idle_island_up = |m: &Media| {
+            let top = if m.has_music() { crate::activity::priority::MUSIC } else { crate::activity::priority::IDLE };
+            crate::features::placement::pure_idle_busy(false, top)
+        };
+        let mut m = Media::default();
+        assert!(!idle_island_up(&m), "no session: idle");
+        m.apply(Update::Session { app: "Spotify.exe".into() });
+        assert!(!idle_island_up(&m), "a session without a titled track has no pill yet");
+        m.apply(Update::Track(track("Midnight Drive")));
+        m.apply(Update::Playback { playing: true, controls: Controls::default() });
+        assert!(idle_island_up(&m), "playing");
+        m.apply(Update::Playback { playing: false, controls: Controls::default() });
+        assert!(idle_island_up(&m), "paused, the player is still open: its pill stays");
+        m.apply(Update::SessionGone);
+        assert!(!idle_island_up(&m), "the player went away: nothing in the pill, the island may hide");
+    }
+
     #[test]
     fn media_session_gone_returns_to_idle() {
         let mut m = playing_state();

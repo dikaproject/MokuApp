@@ -527,9 +527,13 @@ impl App {
         let expires = a.duration.map(|d| Instant::now() + d);
         let id = a.id.clone();
         let prio = a.priority;
+        let was_idle = self.activities.top().is_none_or(|e| e.priority == 0);
         self.activities.set(&id, prio, expires, a);
         self.arm_expiry();
         self.dirty = true;
+        if was_idle && prio > 0 {
+            self.emit(AppEvent::ActivityStarted);
+        }
     }
 
     /// Remove an activity (no-op if absent).

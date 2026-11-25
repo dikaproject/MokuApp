@@ -420,10 +420,17 @@ fn changed(app: &mut App) {
     app.request_redraw(Redraw::All);
 }
 
+/// Which persistent pills the state wants: (`timer.run`, `timer.watch`), both at [`priority::TIMER`].
+/// A countdown, a focus session *and its break*, and a stopwatch have one while they run **or are paused**
+/// (the pill shows the pause); only a finished or reset timer has none. "Hide when idle" counts on it.
+fn pills_wanted(cd: &Countdown, sw: &Stopwatch) -> (bool, bool) {
+    (cd.active, sw.active())
+}
+
 /// Show / remove the persistent pills to match the state.
 fn publish(app: &mut App) {
     let st = app.state::<TimerState>();
-    let (cd, sw) = (st.cd.active, st.sw.active());
+    let (cd, sw) = pills_wanted(&st.cd, &st.sw);
     if cd {
         app.set_activity(Activity::persistent("timer.run", priority::TIMER, run_pill).tab("timer").bubble(run_bubble));
     } else {
@@ -662,6 +669,68 @@ mod tests {
     use super::*;
 
     const MIN: Duration = Duration::from_secs(60);
+
+    /// The island in "hide when idle" is up while a timer pill is: the same priority the activity list uses.
+    fn island_up(cd: &Countdown, sw: &Stopwatch) -> bool {
+        let (run, watch) = pills_wanted(cd, sw);
+        let top = if run || watch { priority::TIMER } else { priority::IDLE };
+        crate::features::placement::pure_idle_busy(false, top)
+    }
+
+    #[test]
+    fn the_focus_timer_keeps_the_idle_island_up_through_focus_pause_and_break() {
+        let t0 = Instant::now();
+        let sw = Stopwatch::default();
+        let mut c = Countdown::idle();
+        assert!(!island_up(&c, &sw), "nothing running: idle, the island may hide");
+        c.start_focus(t0, 25 * MIN, 5 * MIN);
+        assert!(island_up(&c, &sw), "focus session running");
+        c.pause(t0 + 10 * MIN);
+        assert!(island_up(&c, &sw), "a paused session still has its pill");
+        c.resume(t0 + 20 * MIN);
+        // Focus ends (t0 + 35): straight into the break, there is no moment without the pill.
+        assert_eq!(c.tick(t0 + 35 * MIN), Some(Event::FocusDone));
+        assert!(island_up(&c, &sw), "the break");
+        c.pause(t0 + 36 * MIN);
+        assert!(island_up(&c, &sw), "a paused break");
+        c.resume(t0 + 37 * MIN);
+        // The break ends: the timer is idle; the "break over / start focus" alert is a DUE activity of its own.
+        assert_eq!(c.tick(t0 + 41 * MIN), Some(Event::BreakDone));
+        assert!(!island_up(&c, &sw));
+        // Reset in the middle of a session: idle again.
+        c.start_focus(t0 + 50 * MIN, 25 * MIN, 5 * MIN);
+        assert!(island_up(&c, &sw));
+        c.reset();
+        assert!(!island_up(&c, &sw));
+    }
+
+    #[test]
+    fn a_plain_timer_and_the_stopwatch_keep_the_idle_island_up_too() {
+        let t0 = Instant::now();
+        let mut c = Countdown::idle();
+        let mut sw = Stopwatch::default();
+        c.start_countdown(t0, 5 * MIN);
+        assert_eq!(pills_wanted(&c, &sw), (true, false));
+        assert!(island_up(&c, &sw));
+        c.pause(t0 + MIN);
+        assert!(island_up(&c, &sw), "paused countdown");
+        // It runs out: idle.
+        c.resume(t0 + 2 * MIN);
+        assert_eq!(c.tick(t0 + 7 * MIN), Some(Event::Finished));
+        assert!(!island_up(&c, &sw));
+        // The stopwatch: running, paused with time on the clock, and gone after a reset.
+        sw.start(t0);
+        assert_eq!(pills_wanted(&c, &sw), (false, true));
+        assert!(island_up(&c, &sw));
+        sw.pause(t0 + MIN);
+        assert!(island_up(&c, &sw), "paused stopwatch");
+        sw.reset();
+        assert!(!island_up(&c, &sw));
+        // Both at once.
+        c.start_countdown(t0, MIN);
+        sw.start(t0);
+        assert_eq!(pills_wanted(&c, &sw), (true, true));
+    }
 
     #[test]
     fn timer_cycle_focus_break() {

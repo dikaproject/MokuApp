@@ -161,6 +161,9 @@ pub enum AppEvent {
     /// (`app.cancel_save(key)`); the settings app deletes the files right after the island
     /// answered. Do not write the old data back.
     DataCleared,
+    /// The pill went from the idle clock to an activity (`App::set_activity` with nothing else in the
+    /// list). "Hide when idle" shows the island at once on this.
+    ActivityStarted,
 }
 
 /// A background thread owned by the core: started when `enabled(config)` becomes true,

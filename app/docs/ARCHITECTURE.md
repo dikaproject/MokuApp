@@ -496,7 +496,7 @@ forces the island visible; a UWP window resolves to the app's own process, not
 a whole word of the id, or the start of a word of 4+ letters); the media service skips such sessions
 when it chooses the one to show and chooses again when the list changes (`media::repick`).
 
-**Away moves** (`island.move_aside` = off / fade / slide, `island.hide_until_edge`): both end in
+**Away moves** (`island.move_aside` = off / fade / slide, `island.hide_until_edge`, `island.hide_when_idle`): all end in
 `App::set_away(Away)`:
 
 * `Island::set_away` animates the opacity and horizontal offset of the scene's root on the
@@ -527,6 +527,7 @@ when it chooses the one to show and chooses again when the list changes (`media:
   (`activity_news`: up for 4 s), or the panel / a sheet opens or something urgent is shown (never
   hidden meanwhile; 1.2 s after). It hides again once the pointer has been away 900 ms (and the
   hold is over).
+* **Hide when idle** (`island.hide_when_idle`, `HideMode::WhenIdle`) is the same `Edge` machine with another `busy`: `pure_idle_busy(ui, top) = ui || top > 0` (`top` = `App::top_priority()`, 0 = only the idle clock), i.e. *any* activity in the pill keeps the island up: music (a paused player keeps its pill, so it counts until the session is gone), `timer.run` / `timer.watch` (countdown, focus, break and stopwatch are one persistent activity at `TIMER` priority, never a gap between focus and break), downloads, charging, calls, agent pills, notifications, cards. After the last activity ends it stays `IDLE_HOLD_MS` (2 s, `In::busy_hold_ms`; 1.2 s in the old mode) and then needs the usual 900 ms away from the pointer, so a track change or the next pill does not blink it. Hidden, the top edge reveals it with the same zone / dwell / band as the other mode. `AppEvent::ActivityStarted` (emitted by `set_activity` when the pill leaves the idle clock) takes a sample at once so the island appears without waiting for the next poll. The input window is hidden while `Away::Hide` (`set_passthrough`), which is why a hidden island never swallows clicks on a page's navbar. `HideMode` (`Island::hide_mode`): both flags on = "always" wins. `placement::poll_ms` is given `edge_waiting` (hidden *and* a hide mode on), so a pointer parked in a browser's tab strip while music keeps the island up is looked at at the slow rate.
 * `placement::compose` merges the two (hidden wins); `poll_ms` is the polling cadence. All of it is
   unit-tested with simulated pointer paths.
 

@@ -1,5 +1,6 @@
 //! Track O (v0.3): the "island yang sopan" controls of the Island page: monitor, left / centre /
-//! right + a nudge, move aside, hide until the top edge, and the per-app lists.
+//! right + a nudge, move aside, hiding the island (never / when idle / always until the top edge),
+//! and the per-app lists.
 //!
 //! Like the calendar controls they live outside `Form`: this module reads and writes `[island]`
 //! of `config.toml` itself with the same read-modify-write as every other save
@@ -16,7 +17,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use moku_core::apps;
-use moku_core::config::{Anchor, Island, MonitorChoice, MoveAside};
+use moku_core::config::{Anchor, HideMode, Island, MonitorChoice, MoveAside};
 use moku_core::Config;
 use slint::{ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel};
 use windows::Win32::Foundation::{LPARAM, RECT};
@@ -27,6 +28,8 @@ use crate::{PlacementCfg, SettingsWindow};
 
 const ANCHORS: [Anchor; 3] = [Anchor::Left, Anchor::Center, Anchor::Right];
 const ASIDE: [MoveAside; 3] = [MoveAside::Off, MoveAside::Fade, MoveAside::Slide];
+/// "Sembunyikan island": Mati, Saat idle, Selalu sampai tepi atas.
+const HIDE: [HideMode; 3] = [HideMode::Off, HideMode::WhenIdle, HideMode::Always];
 /// How long "Aplikasi aktif" waits for another app to come to the front.
 pub const CAPTURE_SECS: u64 = 10;
 
@@ -85,6 +88,18 @@ pub fn monitors() -> Vec<MonEntry> {
 }
 
 /// 0 utama, 1 ikuti kursor, 2 monitor tertentu.
+/// The hide choice shown (both flags on, from a hand edit, reads as "Selalu").
+pub fn hide_mode_index(i: &Island) -> i32 {
+    HIDE.iter().position(|m| *m == i.hide_mode()).unwrap_or(0) as i32
+}
+
+/// Pick a hide choice: sets the two flags so that only that one is on. Another index changes nothing.
+pub fn set_hide_mode(i: &mut Island, index: i32) {
+    if let Some(m) = usize::try_from(index).ok().and_then(|n| HIDE.get(n)).copied() {
+        i.set_hide_mode(m);
+    }
+}
+
 pub fn monitor_mode(i: &Island) -> i32 {
     match i.monitor_choice() {
         MonitorChoice::Primary | MonitorChoice::All => 0,
@@ -185,8 +200,8 @@ impl Model {
         self.edit(|c| c.island.move_aside = m)
     }
 
-    pub fn set_hide_edge(&mut self, on: bool) -> Result<(), String> {
-        self.edit(|c| c.island.hide_until_edge = on)
+    pub fn set_hide_mode(&mut self, index: i32) -> Result<(), String> {
+        self.edit(|c| set_hide_mode(&mut c.island, index))
     }
 
     fn list_mut(c: &mut Config, l: List) -> &mut Vec<String> {
@@ -242,7 +257,7 @@ fn show(ui: &SettingsWindow, m: &Model) {
     c.set_anchor(ANCHORS.iter().position(|a| *a == i.anchor).unwrap_or(1) as i32);
     c.set_offset(i.offset_x.clamp(-800, 800));
     c.set_move_aside(ASIDE.iter().position(|a| *a == i.move_aside).unwrap_or(0) as i32);
-    c.set_hide_edge(i.hide_until_edge);
+    c.set_hide_mode(hide_mode_index(i));
     c.set_hide_apps(model_of(&i.hide_apps));
     c.set_media_apps(model_of(&i.media_ignore_apps));
 }
@@ -309,10 +324,10 @@ pub fn wire(ui: &SettingsWindow, path: PathBuf) {
             apply(&model, &ui, &|m| m.set_move_aside(v));
         }
     });
-    c.on_set_hide_edge({
+    c.on_set_hide_mode({
         let (model, ui) = (model.clone(), ui.as_weak());
         move |v| {
-            apply(&model, &ui, &|m| m.set_hide_edge(v));
+            apply(&model, &ui, &|m| m.set_hide_mode(v));
         }
     });
     c.on_add_app({
@@ -443,7 +458,7 @@ mod tests {
         m.set_anchor(2).unwrap();
         m.set_offset(-40).unwrap();
         m.set_move_aside(2).unwrap();
-        m.set_hide_edge(true).unwrap();
+        m.set_hide_mode(2).unwrap();
         let (c, w) = Config::load_from(&p);
         assert!(w.is_empty(), "{w:?}");
         assert_eq!(c.island.monitor, r"\\.\DISPLAY2");
@@ -470,10 +485,53 @@ mod tests {
         let mut c = Config::default();
         c.island.hide_apps = vec!["code.exe".into()];
         c.save_to(&p).unwrap();
-        m.set_hide_edge(true).unwrap();
+        m.set_hide_mode(2).unwrap();
         let c = Config::load_from(&p).0;
         assert_eq!(c.island.hide_apps, vec!["code.exe"]);
         assert!(c.island.hide_until_edge);
+    }
+
+    #[test]
+    fn the_hide_choice_maps_onto_the_two_config_flags() {
+        // 0 = Mati, 1 = Saat idle, 2 = Selalu sampai tepi atas.
+        let mk = |edge, idle| Island { hide_until_edge: edge, hide_when_idle: idle, ..Island::default() };
+        assert_eq!(hide_mode_index(&mk(false, false)), 0);
+        assert_eq!(hide_mode_index(&mk(false, true)), 1);
+        assert_eq!(hide_mode_index(&mk(true, false)), 2);
+        assert_eq!(hide_mode_index(&mk(true, true)), 2, "both on in a hand-edited file: always wins");
+        // Choosing sets exactly one flag.
+        let mut i = mk(true, true);
+        set_hide_mode(&mut i, 1);
+        assert_eq!((i.hide_until_edge, i.hide_when_idle), (false, true));
+        set_hide_mode(&mut i, 2);
+        assert_eq!((i.hide_until_edge, i.hide_when_idle), (true, false));
+        set_hide_mode(&mut i, 0);
+        assert_eq!((i.hide_until_edge, i.hide_when_idle), (false, false));
+        // An index outside the choices changes nothing.
+        set_hide_mode(&mut i, 1);
+        set_hide_mode(&mut i, 7);
+        set_hide_mode(&mut i, -1);
+        assert_eq!((i.hide_until_edge, i.hide_when_idle), (false, true));
+    }
+
+    #[test]
+    fn the_hide_choice_is_saved_to_the_file_and_keeps_the_rest() {
+        let p = temp("hidechoice");
+        // An existing file that only has the old key: it reads as "Selalu" and the window changes it.
+        std::fs::write(&p, "[island]\nhide_until_edge = true\nanchor = \"left\"\n[timer]\nfocus_minutes = 40\n").unwrap();
+        let mut m = Model::open(p.clone(), mons());
+        assert_eq!(hide_mode_index(m.island()), 2);
+        m.set_hide_mode(1).unwrap();
+        let (c, w) = Config::load_from(&p);
+        assert!(w.is_empty(), "{w:?}");
+        assert_eq!((c.island.hide_until_edge, c.island.hide_when_idle, c.island.anchor, c.timer.focus_minutes), (false, true, Anchor::Left, 40));
+        assert_eq!(hide_mode_index(m.island()), 1);
+        m.set_hide_mode(0).unwrap();
+        let c = Config::load_from(&p).0;
+        assert_eq!((c.island.hide_until_edge, c.island.hide_when_idle), (false, false));
+        // A bad index saves nothing and fails nothing.
+        m.set_hide_mode(9).unwrap();
+        assert_eq!(hide_mode_index(m.island()), 0);
     }
 
     #[test]

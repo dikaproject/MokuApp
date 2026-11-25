@@ -122,7 +122,7 @@ pub use general::{General, Language};
 pub use glance::Glance;
 pub use ibadah::{AdzanSound, CountdownPill, Ibadah, MAX_PATH_CHARS as MAX_AUDIO_PATH_CHARS};
 pub use ipc::Ipc;
-pub use island::{Anchor, Island, IslandStyle, MonitorChoice, MoveAside, OpenOn};
+pub use island::{Anchor, HideMode, Island, IslandStyle, MonitorChoice, MoveAside, OpenOn};
 pub use launcher::Launcher;
 pub use media::Media;
 pub use monitor::Monitor;
