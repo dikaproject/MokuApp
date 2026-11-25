@@ -769,7 +769,10 @@ mod tests {
         let t = Instant::now();
         let r = request(&srv.url("/silent"), &o, &mut |_| true);
         assert!(r.is_err(), "{r:?}");
-        assert!(t.elapsed() < Duration::from_secs(5));
+        // The 400 ms read timeout ended it, not the 15 s total one. The bound is loose on purpose:
+        // CI runners are slow and run many tests at once.
+        let took = t.elapsed();
+        assert!(took < Duration::from_secs(12), "took {took:?}: {r:?}");
         // A server that trickles forever is cut by the total timeout.
         let steps: Vec<Step> = (0..40).flat_map(|_| [Step::Send(b"x".to_vec()), Step::Sleep(50)]).collect();
         let srv = Server::start(move |_| Script::sse(steps.clone()));

@@ -276,7 +276,11 @@ mod tests {
         std::fs::create_dir_all(&d).unwrap();
         let f = d.join(name);
         std::fs::write(&f, b"data").unwrap();
-        f
+        // The long form: %TEMP% can be an 8.3 short path (C:\Users\RUNNER~1\... on GitHub's
+        // runners) while the shell hands the drop target the long one.
+        let long = std::fs::canonicalize(&f).unwrap();
+        let s = long.to_string_lossy();
+        std::path::PathBuf::from(s.strip_prefix(r"\\?\").unwrap_or(&s))
     }
 
     /// Drive the real IDropTarget (through its COM vtable) with a real shell data object, the
