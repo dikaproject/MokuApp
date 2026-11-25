@@ -24,12 +24,15 @@ away from the freedoms the GPL gives you: you may still use, study, change and s
    different name and a different icon, and say in its README or description that it is
    modified from Moku, with a link to the official repository above.
 
-3. Name and logo (section 7(e)). No rights are granted to the name "Moku" as the name of a
-   modified version, or to the Moku logo (the lowercase "m" standing on a waterline), wherever it
-   appears: app/assets/icon/, app/moku-settings/assets/logo.png, pratinjau/07-Logo.png, the
-   icons built into the programs, and the scripts that draw it (make-icon.ps1, make-logo.ps1).
-   You may redistribute unmodified official releases as they are, logo included. A modified
-   version must replace the logo with its own.
+3. Name and logo (section 7(e)). The Moku logo (the lowercase "m" standing on a waterline) and
+   its files (app/assets/icon/, app/moku-settings/assets/logo.png, pratinjau/07-Logo.png, the
+   icons built into the programs, and the scripts that draw it, make-icon.ps1 and
+   make-logo.ps1) are licensed under the GNU GPL version 3 like the rest of Moku: nothing in
+   them is excluded from the licence. What section 7(e) lets us decline is trademark-style use:
+   no rights are granted to use the name "Moku" or the Moku logo to identify a modified
+   version, or to suggest that it comes from the official project. A modified version must use
+   its own name and icon (see 2). You may redistribute unmodified official releases as they
+   are, logo included.
 
 
 THIRD-PARTY SOFTWARE

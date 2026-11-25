@@ -15,10 +15,12 @@ Moku is desktop-only for now. The UI is Indonesian by default, with English avai
    `%LOCALAPPDATA%\Programs\Moku`, adds a Start Menu shortcut and an entry in Apps & Features,
    and can start Moku with Windows.
 
-**SmartScreen:** the installer is not code-signed yet, so Windows SmartScreen may say
+**SmartScreen:** releases up to v0.3.0 are not code-signed, so Windows SmartScreen may say
 "Windows protected your PC" the first time. Choose "More info" → "Run anyway". To check the
 file first, compare its SHA-256 with `moku-setup.exe.sha256` from the same release:
-`(Get-FileHash .\moku-setup.exe -Algorithm SHA256).Hash`.
+`(Get-FileHash .\moku-setup.exe -Algorithm SHA256).Hash`. Releases from v0.3.1 on are signed once
+SignPath approves the project; see the [code signing policy](../CODE_SIGNING_POLICY.md) and, for what
+Moku sends over the network, the [privacy policy](../PRIVACY.md).
 
 - Silent install: `moku-setup.exe /S` (add `/noautostart`, `/nolaunch` as needed).
 - Uninstall: Apps & Features → Moku, or `moku-setup.exe --uninstall` (the window asks whether
@@ -432,6 +434,8 @@ sheet and shows the island for as long as it is open.
   and notification data it holds in memory (IPC `ClearData`), then deletes Moku's own files in the
   data folder (the list above, **not** whatever else happens to be in that folder) except `config.toml` (and the microphone-restore marker `meeting-mute.flag`).
   With IPC turned off the island cannot be told: restart it after wiping.
+- The privacy policy ([`PRIVACY.md`](../PRIVACY.md)) is the plain-language version of the "Network" notes
+  below and of "Tanya AI" above; change them together.
 - Network, Tanya AI: only the base URL you set in Settings → Tanya AI (an OpenAI-compatible
   `<base>/chat/completions`, and `<base>/models` for the "Tes koneksi" button), only while Tanya AI
   is on and only when you ask. HTTPS, or HTTP for localhost; redirects are not followed; the API key
@@ -553,9 +557,11 @@ What is really missing (everything else in this file exists):
 - **Screen recording**: needs Windows.Graphics.Capture plus an encoder. Screenshots exist.
 - **Real backdrop blur**: the glass is a tint (see "Known limitations").
 - **A light island theme.**
-- **Code signing** of the installer and the exes (see "SmartScreen" above). The updater's own
-  ECDSA signature check is a different thing: it proves a release came from the maintainer's key,
-  Windows does not know that key.
+- **Code signing** of the installer and the exes (see "SmartScreen" above): the release workflow can
+  sign them through SignPath (see "Code signing with SignPath" under "Releasing"), but nothing is
+  signed until SignPath Foundation has approved the project and the repository is set up for it. The
+  updater's own ECDSA signature check is a different thing: it proves a release came from the
+  maintainer's key, Windows does not know that key.
 
 ## Releasing
 
@@ -581,16 +587,103 @@ What is really missing (everything else in this file exists):
   `moku-setup.exe.sha256`, `moku-setup.exe.sig`, the portable zip and the changelog section as notes.
   A tag with a pre-release part (`v0.3.0-rc.1`) becomes a pre-release, which the updater ignores.
 - Locally: `powershell -File app\tools\release.ps1` writes the same files to
-  `<target dir>\dist` (it installs and uploads nothing).
+  `<target dir>\dist` (it installs and uploads nothing). Every release's notes end with a footer linking
+  the code signing policy and the privacy policy (`release.ps1` adds it; the download page must carry them).
 - CI: `.github/workflows/ci.yml` runs `cargo test --workspace --locked` and a release build with
   `RUSTFLAGS=-D warnings` on every pull request and every push to `main` (Windows), with read-only
   permissions; the actions are pinned to commit SHAs and the Rust version to `rust-toolchain.toml`.
   Only the release job of `release.yml` may write (to create the release).
 
+### Code signing with SignPath (opt-in)
+
+[SignPath Foundation](https://signpath.org) gives open-source projects a free Authenticode certificate;
+the rules Moku follows are in [`CODE_SIGNING_POLICY.md`](../CODE_SIGNING_POLICY.md). `release.yml` signs
+with it **only when the repository is set up for it**; otherwise a release is built and published
+unsigned, exactly as before.
+
+| Where | Name | What it is |
+|---|---|---|
+| Repository variable | `SIGNPATH_ORGANIZATION_ID` | Your SignPath organization ID. **Setting it turns signing on** (together with the secret below). |
+| Repository secret | `SIGNPATH_API_TOKEN` | The API token of a SignPath user who may submit signing requests for the project. |
+| Repository variable | `SIGNPATH_PROJECT_SLUG` | Optional. The SignPath project, default `MokuApp`. |
+| Repository variable | `SIGNPATH_SIGNING_POLICY_SLUG` | Optional. The signing policy, default `release-signing`. |
+| Repository secret | `MOKU_SIGNING_KEY` | The updater's ECDSA key (see "The signing key" above), needed with or without SignPath. |
+
+With only one of the variable and the secret set, the run says so in a warning and the release is
+unsigned. With both set, the release job does this (`app\tools\release.ps1` has a `-Stage` for each part):
+
+1. `-Stage Build`: tests, builds `moku.exe`, `moku-settings.exe` and `mokuctl.exe` into `dist\unsigned-exes`.
+2. Uploads that folder (a GitHub artifact, zipped) and submits a signing request with the artifact
+   configuration **`binaries`**; the job waits for it (up to 60 minutes) and downloads `signed-exes`.
+3. `-Stage Package -ExeDir signed-exes`: the installer is built **from the signed programs** (and the
+   portable zip, and the release notes). The installer is not final yet.
+4. Uploads `moku-setup.exe` (one file, not zipped) and submits a second request with the artifact
+   configuration **`installer`**; the job waits again and puts the signed installer over `dist\moku-setup.exe`.
+5. `-Stage Finalize`: only now `moku-setup.exe.sha256` and the ECDSA `moku-setup.exe.sig` are made, over the
+   **final, signed** installer, because the updater verifies the file it downloads. Then the release is created.
+
+**Every signing request waits for a manual approval in SignPath** (the approver is listed in the code
+signing policy), so a signed release takes as long as the two approvals. A request that is not approved
+within 60 minutes fails the run; nothing is published then, and the run is started again by re-running the
+workflow (the tag stays).
+
+What the maintainer sets up once in SignPath (docs: <https://docs.signpath.io>): a project with the slug
+`MokuApp`; the predefined **GitHub.com trusted build system**, added to the organization and linked to the
+project (it makes SignPath check that a request really comes from this repository's workflow run); a signing
+policy `release-signing` for the certificate of SignPath Foundation with **manual approval** required; a user
+with submitter permission for it, whose API token is the secret above; and the two artifact configurations
+below. Both restrict the product name to "Moku", which is what every program's version resource says
+(`app\build-support\winres.rs`); all of them take the product version from the one workspace version.
+
+Artifact configuration **`binaries`** (a zip with the three programs, which is how `actions/upload-artifact`
+uploads a folder):
+
+```xml
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="moku.exe" product-name="Moku">
+      <authenticode-sign/>
+    </pe-file>
+    <pe-file path="moku-settings.exe" product-name="Moku">
+      <authenticode-sign/>
+    </pe-file>
+    <pe-file path="mokuctl.exe" product-name="Moku">
+      <authenticode-sign/>
+    </pe-file>
+  </zip-file>
+</artifact-configuration>
+```
+
+Artifact configuration **`installer`** (one file, `moku-setup.exe`, uploaded as it is):
+
+```xml
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <pe-file product-name="Moku">
+    <authenticode-sign/>
+  </pe-file>
+</artifact-configuration>
+```
+
+SignPath Foundation also wants the product *version* enforced. These two configurations do not do that; if the
+reviewers ask, declare a `version` parameter (`<parameters><parameter name="version" required="true"/></parameters>`),
+add `product-version="${version}"` to each `pe-file`, and pass `parameters: version: "x.y.z"` in the two signing
+steps of `release.yml` (not done yet; the syntax is from SignPath's documentation and was not tried on a live project).
+
+Locally, with `-Dev`, the three stages reproduce the same files as the default run without SignPath:
+
+```powershell
+$o = "C:\r\dist"                                    # absolute paths
+.\app\tools\release.ps1 -Dev -SkipTests -Stage Build -OutDir $o
+.\app\tools\release.ps1 -Dev -Stage Package -OutDir $o -ExeDir "$o\unsigned-exes"   # or the signed folder
+.\app\tools\release.ps1 -Dev -Stage Finalize -OutDir $o
+```
+
 ## License
 
 Moku is free software under the [GNU GPL version 3](../LICENSE) (c) 2026 Moku contributors, with
 the additional terms in [`NOTICE`](../NOTICE) (GPL section 7): keep the credit to the official
-repository, give a modified version its own name and icon, and the Moku logo is not licensed for
-modified versions. The installer and the portable zip include `LICENSE` and `NOTICE` next to the
-exes. Slint (settings window, installer) is used under the GPL-3.0 too.
+repository, give a modified version its own name and icon, and no right is granted to use the name
+"Moku" or the Moku logo to identify a modified version. The logo files themselves are GPL-3.0 like the
+rest. The installer and the portable zip include `LICENSE` and `NOTICE` next to the exes. Slint
+(settings window, installer) is used under the GPL-3.0 too. See also the
+[code signing policy](../CODE_SIGNING_POLICY.md) and the [privacy policy](../PRIVACY.md).

@@ -4,6 +4,28 @@ All notable changes to Moku. The format follows [Keep a Changelog](https://keepa
 and versions follow [Semantic Versioning](https://semver.org/). The release workflow publishes
 the section of the tagged version as the GitHub release notes.
 
+## [Unreleased]
+
+### Added
+
+- **Code signing policy and privacy policy** (`CODE_SIGNING_POLICY.md`, `PRIVACY.md`), linked from the
+  README and from the notes of every release: what is signed, who approves a signing request, how releases
+  are built, and which network service Moku contacts, when, and what it sends (nothing unless a feature
+  is on; no account, no server, no telemetry).
+- **Opt-in code signing with SignPath** in the release workflow: when the repository variable
+  `SIGNPATH_ORGANIZATION_ID` and the secret `SIGNPATH_API_TOKEN` exist, the three programs and then the
+  installer (built from the signed programs) are signed with Authenticode, each after a manual approval in
+  SignPath, and the updater's `.sig` and `.sha256` are made over the final signed installer. Without
+  them releases are built exactly as before, unsigned. `release.ps1` got `-Stage Build|Package|Finalize` for
+  this (the default runs everything, as before); "Releasing" in `app/README.md` lists the variables and the
+  two SignPath artifact configurations.
+
+### Changed
+
+- **Licence:** the Moku logo files are GPL-3.0 like everything else; `NOTICE` no longer excludes them.
+  The section 7(e) terms stay: no right is granted to use the name "Moku" or the Moku logo to identify a
+  modified version, which must use its own name and icon.
+
 ## [0.3.0] - 2026-11-25
 
 First public release, at https://github.com/dikaproject/MokuApp. Moku is free software under the

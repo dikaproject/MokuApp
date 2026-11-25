@@ -7,6 +7,16 @@ name: Release
 # Needs the repository secret MOKU_SIGNING_KEY: the whole text of the private key file made by
 # app/tools/release-key.ps1 (never commit it), REPO and UPDATE_PUBLIC_KEY set in
 # app/moku-core/src/release.rs (release.ps1 refuses to package otherwise).
+#
+# Code signing with SignPath (Authenticode; see CODE_SIGNING_POLICY.md and "Releasing" in app/README.md)
+# is opt-in: it runs only when the repository VARIABLE SIGNPATH_ORGANIZATION_ID is set and the
+# repository SECRET SIGNPATH_API_TOKEN exists. Optional variables: SIGNPATH_PROJECT_SLUG (default
+# MokuApp) and SIGNPATH_SIGNING_POLICY_SLUG (default release-signing). Without them the release is
+# built and published unsigned, exactly as before. When it is on:
+#   build + test -> sign moku.exe, moku-settings.exe, mokuctl.exe (SignPath configuration "binaries")
+#   -> package the installer from the signed programs -> sign moku-setup.exe (configuration
+#   "installer") -> the ECDSA .sig and .sha256 over the final signed installer -> publish.
+# Each signing request waits for a manual approval in SignPath.
 on:
   push:
     tags: ["v*"]
@@ -18,9 +28,12 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
-    timeout-minutes: 90
+    # Two signing requests may each wait up to an hour for the approver, on top of the build.
+    timeout-minutes: 180
     permissions:
       contents: write
+      # Read-only: the SignPath action reads this run's details and downloads its artifacts.
+      actions: read
     defaults:
       run:
         shell: pwsh
@@ -40,7 +53,27 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: app
+      - name: Is SignPath code signing set up?
+        # Only this step sees the SignPath token (to test that it exists); the build steps do not.
+        id: signpath
+        env:
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          $hasOrg = [bool]$env:SIGNPATH_ORGANIZATION_ID
+          $hasToken = [bool]$env:SIGNPATH_API_TOKEN
+          $enabled = $hasOrg -and $hasToken
+          if ($hasOrg -xor $hasToken) {
+            Write-Output "::warning title=SignPath::only one of the variable SIGNPATH_ORGANIZATION_ID and the secret SIGNPATH_API_TOKEN is set: this release is NOT code-signed"
+          }
+          Write-Host "SignPath code signing: $(if ($enabled) { 'on' } else { 'off (this release is not code-signed)' })"
+          "enabled=$($enabled.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      # ---- without SignPath: one step, as before -------------------------------------------------
+      # The update key file exists only from here (or, with SignPath, from the Finalize stage) until
+      # "Remove the signing key": never while a third-party action runs.
       - name: Signing key
+        if: steps.signpath.outputs.enabled != 'true'
         env:
           SIGNING_KEY_TEXT: ${{ secrets.MOKU_SIGNING_KEY }}
         run: |
@@ -49,8 +82,101 @@ jobs:
           [IO.File]::WriteAllText($path, $env:SIGNING_KEY_TEXT)
           "MOKU_SIGNING_KEY=$path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Test, build and package
+        if: steps.signpath.outputs.enabled != 'true'
         # release.ps1 runs cargo test --workspace and the release builds with --locked.
         run: ./app/tools/release.ps1 -Tag "${{ github.ref_name }}" -OutDir "${{ github.workspace }}/dist"
+
+      # ---- with SignPath: the programs, then the installer ---------------------------------------
+      - name: Test and build the programs
+        if: steps.signpath.outputs.enabled == 'true'
+        # dist/unsigned-exes gets moku.exe, moku-settings.exe and mokuctl.exe.
+        run: ./app/tools/release.ps1 -Stage Build -Tag "${{ github.ref_name }}" -OutDir "${{ github.workspace }}/dist"
+      - name: Upload the unsigned programs
+        if: steps.signpath.outputs.enabled == 'true'
+        id: upload-exes
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unsigned-exes
+          path: dist/unsigned-exes
+          archive: true
+          if-no-files-found: error
+          retention-days: 7
+      - name: Sign the programs (SignPath; waits for the approval)
+        if: steps.signpath.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@a2c5b60d9c75f073142b653c354b632eedce097b # v3.2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'MokuApp' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: binaries
+          github-artifact-id: ${{ steps.upload-exes.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-exes
+      - name: Check that the programs are signed
+        if: steps.signpath.outputs.enabled == 'true'
+        run: |
+          foreach ($name in "moku.exe", "moku-settings.exe", "mokuctl.exe") {
+            $file = Join-Path "signed-exes" $name
+            if (-not (Test-Path -LiteralPath $file)) { throw "SignPath returned no $name" }
+            $sig = Get-AuthenticodeSignature -LiteralPath $file
+            Write-Host "$name : $($sig.Status) : $($sig.SignerCertificate.Subject)"
+            if (-not $sig.SignerCertificate) { throw "$name has no Authenticode signature" }
+          }
+      - name: Package the installer from the signed programs
+        if: steps.signpath.outputs.enabled == 'true'
+        # Installer, portable zip and release notes; the .sha256 and .sig come after the installer is signed.
+        run: ./app/tools/release.ps1 -Stage Package -Tag "${{ github.ref_name }}" -OutDir "${{ github.workspace }}/dist" -ExeDir "${{ github.workspace }}/signed-exes"
+      - name: Upload the unsigned installer
+        if: steps.signpath.outputs.enabled == 'true'
+        id: upload-setup
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          # With archive: false the artifact is named after the file (moku-setup.exe).
+          name: moku-setup.exe
+          path: dist/moku-setup.exe
+          archive: false
+          if-no-files-found: error
+          retention-days: 7
+      - name: Sign the installer (SignPath; waits for the approval)
+        if: steps.signpath.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@a2c5b60d9c75f073142b653c354b632eedce097b # v3.2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'MokuApp' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.upload-setup.outputs.artifact-id }}
+          # A single file, not a zip: saved as signed-installer/moku-setup.exe.
+          skip-decompress: true
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-installer
+      - name: Put the signed installer in place
+        if: steps.signpath.outputs.enabled == 'true'
+        run: |
+          $signed = "signed-installer/moku-setup.exe"
+          if (-not (Test-Path -LiteralPath $signed)) { throw "SignPath returned no moku-setup.exe" }
+          $sig = Get-AuthenticodeSignature -LiteralPath $signed
+          Write-Host "moku-setup.exe : $($sig.Status) : $($sig.SignerCertificate.Subject)"
+          if (-not $sig.SignerCertificate) { throw "moku-setup.exe has no Authenticode signature" }
+          Copy-Item -LiteralPath $signed -Destination "dist/moku-setup.exe" -Force
+      - name: Signing key (after the SignPath steps)
+        if: steps.signpath.outputs.enabled == 'true'
+        env:
+          SIGNING_KEY_TEXT: ${{ secrets.MOKU_SIGNING_KEY }}
+        run: |
+          if (-not $env:SIGNING_KEY_TEXT) { throw "the repository secret MOKU_SIGNING_KEY is not set (see app/tools/release-key.ps1)" }
+          $path = Join-Path $env:RUNNER_TEMP "moku-signing-key.txt"
+          [IO.File]::WriteAllText($path, $env:SIGNING_KEY_TEXT)
+          "MOKU_SIGNING_KEY=$path" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: ECDSA signature and checksum of the signed installer
+        if: steps.signpath.outputs.enabled == 'true'
+        # The in-app updater verifies the file it downloads, so this is made over the FINAL (Authenticode-signed) installer.
+        run: ./app/tools/release.ps1 -Stage Finalize -Tag "${{ github.ref_name }}" -OutDir "${{ github.workspace }}/dist"
+
       - name: Remove the signing key
         if: always()
         run: Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $env:RUNNER_TEMP "moku-signing-key.txt")
