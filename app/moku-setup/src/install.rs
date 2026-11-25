@@ -437,6 +437,10 @@ mod tests {
             let root = std::env::temp_dir().join(format!("moku-setup-test-{name}-{}", std::process::id()));
             let _ = std::fs::remove_dir_all(&root);
             std::fs::create_dir_all(&root).unwrap();
+            // The long form: %TEMP% can be an 8.3 short path (C:\Users\RUNNER~1\... on GitHub's
+            // runners) while a shortcut's target reads back as the long one.
+            let long = std::fs::canonicalize(&root).unwrap();
+            let root = PathBuf::from(long.to_string_lossy().strip_prefix(r"\\?\").unwrap_or(&long.to_string_lossy()).to_string());
             let reg_root = format!(r"{TEST_REG}\{name}-{}", std::process::id());
             let env = |k: &str| match k {
                 moku_core::install::INSTALL_ROOT_ENV => Some(root.display().to_string()),
