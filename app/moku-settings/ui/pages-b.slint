@@ -13,7 +13,6 @@ import { PhoneSettings } from "pages-r.slint";
 
 component FeatureTile inherits Rectangle {
     in property <string> glyph;
-    in property <color> tint;
     in property <string> title;
     in property <string> subtitle;
     in property <bool> checked;
@@ -21,23 +20,23 @@ component FeatureTile inherits Rectangle {
     callback toggled(bool);
     min-height: 60px;
     background: Theme.card;
-    border-radius: 14px;
+    border-radius: Theme.radius-card;
     border-width: 1px;
     border-color: Theme.line;
     opacity: root.soon ? 0.6 : 1.0;
     HorizontalLayout {
         padding: 12px;
-        spacing: 11px;
+        spacing: 12px;
         VerticalLayout {
             alignment: center;
-            IconTile { glyph: root.glyph; tint: root.tint; size: 34px; }
+            IconTile { glyph: root.glyph; size: 36px; }
         }
         VerticalLayout {
             alignment: center;
             spacing: 2px;
             horizontal-stretch: 1;
-            Text { text: root.title; font-size: 13px; font-weight: 600; color: Theme.text; overflow: elide; }
-            Text { text: root.subtitle; font-size: 11px; color: Theme.text3; overflow: elide; }
+            Text { text: root.title; font-size: Theme.fs-body; font-weight: Theme.fw-bold; color: Theme.text; wrap: word-wrap; }
+            Text { text: root.subtitle; font-size: Theme.fs-caption; color: Theme.text3; wrap: word-wrap; }
         }
         VerticalLayout {
             alignment: center;
@@ -55,101 +54,101 @@ export component FiturPage inherits Page {
     subtitle: "Nyalakan hanya yang kamu pakai. Fitur yang mati tidak memakan memori.";
 
     GridLayout {
-        spacing: 10px;
+        spacing: 8px;
         Row {
             FeatureTile {
-                glyph: "\u{EC4F}"; tint: #ff5a5f; title: "Musik & lirik"; subtitle: "Kontrol pemutar dan lirik berjalan";
+                glyph: "\u{EC4F}"; title: "Musik & lirik"; subtitle: "Kontrol pemutar dan lirik berjalan";
                 checked: Cfg.f.media-enabled;
                 toggled(v) => { Cfg.f.media-enabled = v; Cfg.commit(); }
             }
             FeatureTile {
-                glyph: "\u{EA8F}"; tint: #0a84ff; title: "Notifikasi"; subtitle: "Dari mokuctl dan skrip, tampil di island";
+                glyph: "\u{EA8F}"; title: "Notifikasi"; subtitle: "Dari mokuctl dan skrip, tampil di island";
                 checked: Cfg.f.ipc-enabled;
                 toggled(v) => { Cfg.f.ipc-enabled = v; Cfg.commit(); }
             }
         }
         Row {
             FeatureTile {
-                glyph: "\u{EC59}"; tint: #8e5cf2; title: "Shelf"; subtitle: "Simpan file sementara dengan seret-lepas";
+                glyph: "\u{EC59}"; title: "Shelf"; subtitle: "Simpan file sementara dengan seret-lepas";
                 checked: Cfg.f.shelf-enabled;
                 toggled(v) => { Cfg.f.shelf-enabled = v; Cfg.commit(); }
             }
             FeatureTile {
-                glyph: "\u{E77F}"; tint: #2fb99a; title: "Riwayat clipboard"; subtitle: "Teks dan gambar yang baru disalin";
+                glyph: "\u{E77F}"; title: "Riwayat clipboard"; subtitle: "Teks dan gambar yang baru disalin";
                 checked: Cfg.f.clipboard-enabled;
                 toggled(v) => { Cfg.f.clipboard-enabled = v; Cfg.commit(); }
             }
         }
         Row {
             FeatureTile {
-                glyph: "\u{E722}"; tint: #2b7bef; title: "Tangkap layar"; subtitle: "Area, jendela, dan layar penuh";
+                glyph: "\u{E722}"; title: "Tangkap layar"; subtitle: "Area, jendela, dan layar penuh";
                 checked: Cfg.f.capture-enabled;
                 toggled(v) => { Cfg.f.capture-enabled = v; Cfg.commit(); }
             }
             FeatureTile {
-                glyph: "\u{E823}"; tint: #f0a02a; title: "Timer & fokus"; subtitle: "Timer, stopwatch, dan pomodoro";
+                glyph: "\u{E823}"; title: "Timer & fokus"; subtitle: "Timer, stopwatch, dan pomodoro";
                 checked: Cfg.f.timer-enabled;
                 toggled(v) => { Cfg.f.timer-enabled = v; Cfg.commit(); }
             }
         }
         Row {
             FeatureTile {
-                glyph: "\u{E9D9}"; tint: #2fb99a; title: "Monitor sistem"; subtitle: "CPU, RAM, GPU, disk, jaringan";
+                glyph: "\u{E9D9}"; title: "Monitor sistem"; subtitle: "CPU, RAM, GPU, disk, jaringan";
                 checked: Cfg.f.monitor-enabled;
                 toggled(v) => { Cfg.f.monitor-enabled = v; Cfg.commit(); }
             }
             FeatureTile {
-                glyph: "\u{E9E9}"; tint: #5e6ef0; title: "Panel kontrol"; subtitle: "Wi-Fi, Bluetooth, volume, kecerahan";
+                glyph: "\u{E9E9}"; title: "Panel kontrol"; subtitle: "Wi-Fi, Bluetooth, volume, kecerahan";
                 checked: Cfg.f.control-enabled;
                 toggled(v) => { Cfg.f.control-enabled = v; Cfg.commit(); }
             }
         }
         Row {
             FeatureTile {
-                glyph: "\u{E787}"; tint: #e8604c; title: "Hari ini"; subtitle: "Tanggal, to-do, dan cuaca";
+                glyph: "\u{E787}"; title: "Hari ini"; subtitle: "Tanggal, to-do, dan cuaca";
                 checked: Cfg.f.today-enabled;
                 toggled(v) => { Cfg.f.today-enabled = v; Cfg.commit(); }
             }
             FeatureTile {
-                glyph: "\u{E767}"; tint: #0a84ff; title: "Indikator volume"; subtitle: "Pil sesaat saat volume berubah";
+                glyph: "\u{E767}"; title: "Indikator volume"; subtitle: "Pil sesaat saat volume berubah";
                 checked: Cfg.f.volume-osd-enabled;
                 toggled(v) => { Cfg.f.volume-osd-enabled = v; Cfg.commit(); }
             }
         }
         Row {
             FeatureTile {
-                glyph: "\u{E943}"; tint: #f0a02a; title: "Izin AI coding"; subtitle: "Kartu izin untuk Claude Code dan agen lain";
+                glyph: "\u{E943}"; title: "Izin AI coding"; subtitle: "Kartu izin untuk Claude Code dan agen lain";
                 checked: Cfg.f.ipc-ai-cards;
                 toggled(v) => { Cfg.f.ipc-ai-cards = v; Cfg.commit(); }
             }
             FeatureTile {
-                glyph: "\u{E753}"; tint: #0a84ff; title: "Pengingat minum"; subtitle: "Pengingat kesehatan berkala";
+                glyph: "\u{E753}"; title: "Pengingat minum"; subtitle: "Pengingat kesehatan berkala";
                 checked: Cfg.f.reminders-water;
                 toggled(v) => { Cfg.f.reminders-water = v; Cfg.commit(); }
             }
         }
         Row {
             FeatureTile {
-                glyph: "\u{E890}"; tint: #8e5cf2; title: "Istirahat mata"; subtitle: "Pengingat 20-20-20";
+                glyph: "\u{E890}"; title: "Istirahat mata"; subtitle: "Pengingat 20-20-20";
                 checked: Cfg.f.reminders-eye;
                 toggled(v) => { Cfg.f.reminders-eye = v; Cfg.commit(); }
             }
             FeatureTile {
-                glyph: "\u{E708}"; tint: #f0a02a; title: "Jadwal sholat"; subtitle: "Modul regional, bisa dimatikan";
+                glyph: "\u{E708}"; title: "Jadwal sholat"; subtitle: "Modul regional, bisa dimatikan";
                 checked: Cfg.f.prayer-enabled;
                 toggled(v) => { Cfg.f.prayer-enabled = v; Cfg.commit(); }
             }
         }
         Row {
             FeatureTile {
-                glyph: "\u{E8EA}"; tint: #2b7bef; title: "Moku Link"; subtitle: "Sambungkan HP lewat Wi-Fi";
+                glyph: "\u{E8EA}"; title: "Moku Link"; subtitle: "Sambungkan HP lewat Wi-Fi";
                 soon: true;
             }
             Rectangle { }
         }
     }
 
-    SectionLabel { text: "ATUR FITUR"; }
+    SectionLabel { text: "Atur fitur"; }
     Card {
         Setting {
             first: true;
@@ -165,6 +164,14 @@ export component FiturPage inherits Page {
             Toggle {
                 checked: Cfg.f.media-lyrics-in-pill;
                 toggled(v) => { Cfg.f.media-lyrics-in-pill = v; Cfg.commit(); }
+            }
+        }
+        Setting {
+            title: "Sorot lirik per kata";
+            subtitle: "Kata yang dinyanyikan menyala mengikuti lagu. Waktunya diperkirakan kalau lagu tidak punya data per kata.";
+            Toggle {
+                checked: Cfg.f.media-lyrics-word-highlight;
+                toggled(v) => { Cfg.f.media-lyrics-word-highlight = v; Cfg.commit(); }
             }
         }
         Setting {
@@ -204,7 +211,7 @@ export component FiturPage inherits Page {
 
     PowerSettings { }
 
-    SectionLabel { text: "HARI INI & CUACA"; }
+    SectionLabel { text: "Hari ini & cuaca"; }
     Card {
         ToggleSetting {
             first: true;
@@ -232,7 +239,7 @@ export component FiturPage inherits Page {
         }
     }
 
-    SectionLabel { text: "JADWAL SHOLAT"; }
+    SectionLabel { text: "Jadwal sholat"; }
     Card {
         Setting {
             first: true;
@@ -289,7 +296,7 @@ export component NotifikasiPage inherits Page {
     title: "Notifikasi";
     subtitle: "Cara pemberitahuan tampil di island, pil sistem, dan pengingat.";
 
-    SectionLabel { text: "TAMPILAN"; }
+    SectionLabel { text: "Tampilan"; }
     Card {
         ToggleSetting {
             first: true;
@@ -319,7 +326,7 @@ export component NotifikasiPage inherits Page {
     AgentsSection { }
     MirrorSection { }
 
-    SectionLabel { text: "JANGAN GANGGU"; }
+    SectionLabel { text: "Jangan ganggu"; }
     Card {
         ToggleSetting {
             first: true;
@@ -336,7 +343,7 @@ export component NotifikasiPage inherits Page {
         }
     }
 
-    SectionLabel { text: "PIL SISTEM"; }
+    SectionLabel { text: "Pil sistem"; }
     Card {
         ToggleSetting {
             first: true;
@@ -370,7 +377,7 @@ export component NotifikasiPage inherits Page {
         }
     }
 
-    SectionLabel { text: "PENGINGAT"; }
+    SectionLabel { text: "Pengingat"; }
     Card {
         ToggleSetting {
             first: true;
@@ -419,26 +426,26 @@ export component MokuLinkPage inherits Page {
     Rectangle {
         height: 200px;
         background: Theme.card;
-        border-radius: 18px;
+        border-radius: Theme.radius-card;
         border-width: 1px;
         border-color: Theme.line;
         VerticalLayout {
             alignment: center;
-            spacing: 10px;
+            spacing: 12px;
             HorizontalLayout {
                 alignment: center;
-                IconTile { glyph: "\u{E8EA}"; tint: #2b7bef; size: 46px; }
+                IconTile { glyph: "\u{E8EA}"; size: 46px; }
             }
             HorizontalLayout {
                 alignment: center;
-                Text { text: "Segera hadir"; font-size: 18px; font-weight: 700; color: Theme.text; }
+                Text { text: "Segera hadir"; font-size: Theme.fs-heading; font-weight: Theme.fw-bold; color: Theme.text; }
             }
             HorizontalLayout {
                 alignment: center;
                 Text {
                     width: 420px;
                     text: "Notifikasi, panggilan, dan kode OTP dari HP akan muncul di island lewat aplikasi pendamping Android. Aplikasinya belum tersedia di versi 0.1.";
-                    font-size: 12.5px;
+                    font-size: Theme.fs-body;
                     color: Theme.text2;
                     wrap: word-wrap;
                     horizontal-alignment: center;

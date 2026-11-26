@@ -233,6 +233,8 @@ fn now_ticks() -> i64 {
 
 fn read_timeline(s: &Session, playing: bool) -> windows::core::Result<Timeline> {
     let t = s.GetTimelineProperties()?;
+    // Players that can play at another speed report it; most report nothing (= 1x).
+    let rate = s.GetPlaybackInfo().and_then(|i| i.PlaybackRate()).and_then(|r| r.Value()).map_or(0.0, |r| r as f32);
     let start = t.StartTime()?.Duration;
     let end = t.EndTime()?.Duration;
     let pos = t.Position()?.Duration;
@@ -243,13 +245,13 @@ fn read_timeline(s: &Session, playing: bool) -> windows::core::Result<Timeline> 
         let last = t.LastUpdatedTime().map(|d| d.UniversalTime).unwrap_or(0);
         let elapsed = now_ticks() - last;
         if last > 0 && (0..24 * 3600 * 10_000_000i64).contains(&elapsed) {
-            pos_ms += (elapsed / 10_000) as u64;
+            pos_ms += ((elapsed / 10_000) as f64 * if rate > 0.0 { rate.clamp(0.25, 4.0) as f64 } else { 1.0 }) as u64;
         }
     }
     if dur_ms > 0 {
         pos_ms = pos_ms.min(dur_ms);
     }
-    Ok(Timeline { pos_ms, dur_ms, at: Some(std::time::Instant::now()) })
+    Ok(Timeline { pos_ms, dur_ms, at: Some(std::time::Instant::now()), rate })
 }
 
 /// Retry delay after `d`: doubled, at most 60 s.

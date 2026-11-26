@@ -1,7 +1,7 @@
 //! Moku island (`moku.exe`).
 //!
-//! Flags (testing): `--state <idle|hover|music|music-panel|panel>` (fixed state for screenshots;
-//! with `panel`, `--tab <id>` picks the tab), `--demo` (loops the prototype states), `--blur`
+//! Flags (testing): `--state <idle|hover|music|music-panel|lyrics|lyrics-panel|panel>` (fixed state for
+//! screenshots; with `panel`, `--tab <id>` picks the tab; `lyrics*`: a fake player with timed lyrics), `--demo` (loops the prototype states), `--blur`
 //! (HostBackdropBrush glass), `--gpu` (hardware D3D for rasterising).
 //! Normal run: no flags. Quit: tray → Keluar, or Ctrl+Alt+Shift+Q.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -134,7 +134,7 @@ fn run() -> Result<()> {
         }
         match args.state.as_deref() {
             Some("hover") => start_mode = Mode::Hover,
-            Some("music-panel") | Some("panel") => start_mode = Mode::Panel,
+            Some("music-panel") | Some("panel") | Some("lyrics-panel") => start_mode = Mode::Panel,
             _ => {}
         }
 
@@ -153,9 +153,14 @@ fn run() -> Result<()> {
                 demo::show_music(a);
             }
             a.start();
+            // `--state lyrics|lyrics-panel`: a fake player with timed lyrics (`MOKU_DEMO_POS_MS` = where it starts).
+            if matches!(args.state.as_deref(), Some("lyrics") | Some("lyrics-panel")) {
+                let start = std::env::var("MOKU_DEMO_POS_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(1_000);
+                features::media::demo_lyrics(a, start);
+            }
             if let Some(t) = args.tab.as_deref() {
                 a.open_panel(Some(t));
-            } else if args.state.as_deref() == Some("music-panel") {
+            } else if matches!(args.state.as_deref(), Some("music-panel") | Some("lyrics-panel")) {
                 a.open_panel(Some("media"));
             }
             a.flush();

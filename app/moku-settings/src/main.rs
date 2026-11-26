@@ -9,7 +9,8 @@
 //!
 //! Flags (for testing): `--section <umum|island|tampilan|fitur|notifikasi|mokulink|pintasan|
 //! plugin|privasi|ai|memori|tentang>` opens that page; `--onboarding [--step 1..6]` shows the onboarding;
-//! `--confirm <delete|reset>` opens that confirmation dialog; `--size WxH` sets the window size.
+//! `--confirm <delete|reset>` opens that confirmation dialog; `--size WxH` sets the window size;
+//! `--update-sample <state>` shows the Tentang "Pembaruan" card in a made-up state (screenshots).
 //! `MOKU_DATA_DIR` redirects the config / data folder; `MOKU_AUTOSTART_KEY` the Run key.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -62,6 +63,10 @@ struct Args {
     scroll: f32,
     /// Screenshots: show a sample data / config path (`C:\Users\Nama\...`) instead of the real one.
     sample_paths: bool,
+    /// Screenshots: show the "Pembaruan" card as if the island said this (`unknown`, `idle`,
+    /// `checking`, `uptodate`, `available`, `downloading`, `installing`, `failed`, `down`); the
+    /// pipe is not used then.
+    update_sample: Option<String>,
 }
 
 fn parse_args() -> Args {
@@ -89,6 +94,7 @@ fn parse_args() -> Args {
                 }
             }
             "--sample-paths" => a.sample_paths = true,
+            "--update-sample" => a.update_sample = it.next(),
             "--scroll" => a.scroll = it.next().and_then(|v| v.parse().ok()).unwrap_or(0.0),
             "--size" => {
                 if let Some((w, h)) = it.next().as_deref().and_then(|v| v.split_once('x')) {
@@ -127,7 +133,7 @@ fn main() -> Result<(), slint::PlatformError> {
     let st = app::wire(&ui, store, &config, app::Env::real(), entry_onboarding);
     claude::wire(&ui, moku_core::paths::config_file());
     calendar_page::wire(&ui, moku_core::paths::config_file());
-    update_page::wire(&ui, &config);
+    update_page::wire(&ui, &config, args.update_sample.as_deref());
     power::wire(&ui, moku_core::paths::config_file());
     launcher_page::wire(&ui, &config);
     placement_page::wire(&ui, moku_core::paths::config_file());
@@ -186,8 +192,8 @@ fn set_dark_title_bar(ui: &SettingsWindow) -> bool {
     ui.window()
         .with_winit_window(|w| {
             w.set_theme(Some(WinTheme::Dark));
-            w.set_title_background_color(Some(Color::from_rgb(0x10, 0x16, 0x30)));
-            w.set_title_text_color(Color::from_rgb(0xF2, 0xF2, 0xF7));
+            w.set_title_background_color(Some(Color::from_rgb(0x0F, 0x11, 0x15)));
+            w.set_title_text_color(Color::from_rgb(0xEC, 0xEE, 0xF1));
         })
         .is_some()
 }

@@ -1,7 +1,7 @@
-// moku-setup's window: the onboarding look (pratinjau/05-Onboarding.png) in a small frame.
-// Shares the settings app's palette and widgets.
+// moku-setup's window: the settings app's design system (one accent, flat grey surfaces, see the
+// note in moku-settings/ui/theme.slint) in a small frame. Shares its tokens and widgets.
 import { Theme } from "../../moku-settings/ui/theme.slint";
-import { Btn, Toggle, Glyph } from "../../moku-settings/ui/widgets.slint";
+import { Btn, Toggle, Glyph, Progress, Badge } from "../../moku-settings/ui/widgets.slint";
 
 export global Setup {
     // 0 install, 1 update (an installation exists), 2 uninstall.
@@ -31,20 +31,20 @@ component CheckRow inherits Rectangle {
     in property <bool> danger;
     callback toggled(bool);
     height: 60px;
-    border-radius: 16px;
+    border-radius: Theme.radius-card;
     background: Theme.card;
     border-width: 1px;
-    border-color: #ffffff26;
+    border-color: Theme.line;
     HorizontalLayout {
         padding-left: 16px;
-        padding-right: 14px;
+        padding-right: 16px;
         spacing: 12px;
         VerticalLayout {
             alignment: center;
             spacing: 2px;
             horizontal-stretch: 1;
-            Text { text: root.title; font-size: 13.5px; font-weight: 600; color: root.danger && root.checked ? #ff6a61 : Theme.text; }
-            Text { text: root.subtitle; font-size: 11.5px; color: Theme.text3; overflow: elide; }
+            Text { text: root.title; font-size: Theme.fs-body; font-weight: Theme.fw-bold; color: root.danger && root.checked ? Theme.danger : Theme.text; }
+            Text { text: root.subtitle; font-size: Theme.fs-small; color: Theme.text3; overflow: elide; }
         }
         VerticalLayout {
             alignment: center;
@@ -72,24 +72,18 @@ export component SetupWindow inherits Window {
         height: 58px;
         padding-left: 26px;
         padding-right: 26px;
-        spacing: 9px;
+        spacing: 8px;
         VerticalLayout {
             alignment: center;
             Image { source: @image-url("../../moku-settings/assets/logo.png"); width: 24px; height: 24px; }
         }
-        Text { text: "Moku"; font-size: 14px; font-weight: 700; color: Theme.text; vertical-alignment: center; }
+        Text { text: "Moku"; font-size: Theme.fs-body; font-weight: Theme.fw-bold; color: Theme.text; vertical-alignment: center; }
         Rectangle { horizontal-stretch: 1; }
         if Setup.test-mode: VerticalLayout {
             alignment: center;
-            Rectangle {
-                height: 20px;
-                width: tm.preferred-width + 16px;
-                border-radius: 10px;
-                background: #ff9f0a33;
-                tm := Text { text: "MODE UJI"; font-size: 10px; font-weight: 700; color: Theme.orange; }
-            }
+            Badge { text: "Mode uji"; }
         }
-        Text { text: "Versi " + Setup.version; font-size: 11.5px; color: Theme.text3; vertical-alignment: center; }
+        Text { text: "Versi " + Setup.version; font-size: Theme.fs-small; color: Theme.text3; vertical-alignment: center; }
     }
 
     // ------------------------------------------------------------ body
@@ -98,7 +92,7 @@ export component SetupWindow inherits Window {
         height: root.height - 58px - 76px;
         VerticalLayout {
             alignment: center;
-            spacing: 10px;
+            spacing: 8px;
             padding-left: 40px;
             padding-right: 40px;
 
@@ -114,10 +108,10 @@ export component SetupWindow inherits Window {
                         width: 26px;
                         height: 26px;
                         border-radius: 13px;
-                        background: root.uninstall ? Theme.fill3 : Theme.green;
+                        background: root.uninstall ? Theme.control-hi : Theme.accent;
                         border-width: 2px;
-                        border-color: #1a1d3f;
-                        Glyph { g: "\u{E73E}"; font-size: 12px; color: #ffffff; }
+                        border-color: Theme.bg;
+                        Glyph { g: "\u{E73E}"; font-size: 12px; color: root.uninstall ? Theme.text : Theme.on-accent; }
                     }
                 }
             }
@@ -126,8 +120,8 @@ export component SetupWindow inherits Window {
                     : Setup.phase == 3 ? (root.uninstall ? "Gagal menghapus Moku" : "Gagal memasang Moku")
                     : root.uninstall ? "Hapus Moku?"
                     : Setup.mode == 1 ? "Perbarui Moku" : "Pasang Moku";
-                font-size: 26px;
-                font-weight: 700;
+                font-size: Theme.fs-display;
+                font-weight: Theme.fw-bold;
                 color: Theme.text;
                 horizontal-alignment: center;
             }
@@ -141,8 +135,8 @@ export component SetupWindow inherits Window {
                     : root.uninstall ? "Island, pintasan, dan entri di Aplikasi akan dihapus dari akun ini."
                     : Setup.mode == 1 ? "Versi " + Setup.old-version + " akan diganti dengan " + Setup.version + ". Pengaturan dan datamu tetap ada."
                     : "Island kecil di tepi atas layarmu. Dipasang untuk akunmu saja, tanpa hak admin.";
-                font-size: 13px;
-                color: Setup.phase == 3 ? #ff8a82 : Theme.text2;
+                font-size: Theme.fs-body;
+                color: Setup.phase == 3 ? Theme.danger : Theme.text2;
                 wrap: word-wrap;
                 horizontal-alignment: center;
             }
@@ -163,20 +157,7 @@ export component SetupWindow inherits Window {
             }
             if Setup.phase == 1: HorizontalLayout {
                 alignment: center;
-                Rectangle {
-                    width: 360px;
-                    height: 6px;
-                    border-radius: 3px;
-                    background: #ffffff26;
-                    Rectangle {
-                        x: 0;
-                        width: parent.width * Math.clamp(Setup.progress, 0, 1);
-                        height: parent.height;
-                        border-radius: 3px;
-                        background: root.uninstall ? Theme.red : Theme.blue;
-                        animate width { duration: 160ms; easing: ease-out; }
-                    }
-                }
+                Progress { width: 360px; value: Setup.progress; }
             }
         }
     }
@@ -188,13 +169,13 @@ export component SetupWindow inherits Window {
         padding-left: 26px;
         padding-right: 26px;
         padding-bottom: 8px;
-        spacing: 10px;
+        spacing: 8px;
         VerticalLayout {
             alignment: center;
             horizontal-stretch: 1;
             Text {
                 text: root.uninstall ? "" : Setup.install-dir;
-                font-size: 11px;
+                font-size: Theme.fs-caption;
                 color: Theme.text3;
                 overflow: elide;
             }

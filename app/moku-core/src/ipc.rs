@@ -98,8 +98,143 @@ pub enum Request {
     /// The settings app is about to delete the data folder ("Hapus semua data"): drop the data
     /// held in memory and finish pending writes, then answer `Ok`. Nothing old is written back.
     ClearData,
+    /// The updater of the island (Settings → Tentang, `mokuctl update ...`): ask for its status,
+    /// check for a newer release now, or install the release on offer. Always answered with
+    /// `Response::Update` (or `Error`), whatever the action: the answer is the status right after
+    /// the action was taken (`Check` answers `checking` at once; the result shows in a later
+    /// `Status`).
+    Update { action: UpdateAction },
     /// Test / automation hooks (`mokuctl debug ...`).
     Debug(DebugOp),
+}
+
+/// What a client asks of the updater ([`Request::Update`]). Wire form: snake_case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateAction {
+    /// Only report.
+    Status,
+    /// Look for a newer release now (the one request to GitHub's `releases/latest`), also when the
+    /// automatic check is off. Needs an updater built into this build.
+    Check,
+    /// Download, verify and run the installer of the release on offer.
+    Install,
+}
+
+impl UpdateAction {
+    /// The command-line spelling (`mokuctl update <action>`).
+    pub fn parse(s: &str) -> Option<UpdateAction> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "status" => Some(UpdateAction::Status),
+            "check" => Some(UpdateAction::Check),
+            "install" => Some(UpdateAction::Install),
+            _ => None,
+        }
+    }
+}
+
+/// Where the updater stands ([`UpdateStatus::state`]). Wire form: snake_case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateState {
+    /// Nothing to report (no check since the island started, or the offer was dismissed).
+    Idle,
+    /// A check is running.
+    Checking,
+    /// The last check found nothing newer than `current`.
+    UpToDate,
+    /// A newer release (`version`) is on offer.
+    Available,
+    /// Downloading and verifying the installer (`progress`).
+    Downloading,
+    /// The verified installer was started; it will close the island.
+    Installing,
+    /// The last check or install failed (`error`).
+    Failed,
+}
+
+/// Why a check or an install failed, in a few fixed words: no URLs, no headers, nothing the server
+/// said. Both sides turn it into text ([`UpdateFailure::text`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UpdateFailure {
+    /// No connection to GitHub.
+    Network,
+    /// GitHub answered 403 / 429 (too many requests).
+    RateLimited,
+    /// GitHub answered 5xx.
+    Server,
+    /// GitHub answered 404 (no release published).
+    NotFound,
+    /// The answer was not a release Moku understands.
+    BadAnswer,
+    /// The check was stopped (Moku is closing).
+    Stopped,
+    /// Downloading, verifying or starting the installer failed (details in the log).
+    Install,
+    Other,
+}
+
+impl UpdateFailure {
+    /// Sort an error message of the updater's HTTP client (`features/update/fetch.rs`) or of the
+    /// release parser. Nothing of the message is kept.
+    pub fn classify(message: &str) -> UpdateFailure {
+        let m = message.trim();
+        if let Some(code) = m.strip_prefix("HTTP ").and_then(|r| r.split_whitespace().next()).and_then(|c| c.parse::<u16>().ok()) {
+            return match code {
+                403 | 429 => UpdateFailure::RateLimited,
+                404 => UpdateFailure::NotFound,
+                500..=599 => UpdateFailure::Server,
+                _ => UpdateFailure::BadAnswer,
+            };
+        }
+        if m == "stopped" {
+            return UpdateFailure::Stopped;
+        }
+        let net = ["WinHttpOpen failed", "connect failed", "open request failed", "send:", "receive:", "read:", "download cut short", "too many redirects", "URL not allowed", "not HTTPS", "bad url"];
+        if net.iter().any(|p| m.starts_with(p)) {
+            return UpdateFailure::Network;
+        }
+        if m == "response too large" || m.contains("release") || m.contains("asset") || m.starts_with("tag ") {
+            return UpdateFailure::BadAnswer;
+        }
+        UpdateFailure::Other
+    }
+
+    /// A short phrase without a full stop, Indonesian or English.
+    pub fn text(self, english: bool) -> &'static str {
+        let (id, en) = match self {
+            UpdateFailure::Network => ("tidak bisa terhubung ke GitHub", "cannot reach GitHub"),
+            UpdateFailure::RateLimited => ("GitHub membatasi permintaan, coba lagi nanti", "GitHub is limiting requests, try again later"),
+            UpdateFailure::Server => ("GitHub sedang bermasalah", "GitHub is having trouble"),
+            UpdateFailure::NotFound => ("belum ada rilis", "no release found"),
+            UpdateFailure::BadAnswer => ("jawaban GitHub tidak dikenali", "unexpected answer from GitHub"),
+            UpdateFailure::Stopped => ("dihentikan", "stopped"),
+            UpdateFailure::Install => ("pembaruan tidak terpasang, lihat log", "the update was not installed, see the log"),
+            UpdateFailure::Other => ("kesalahan tidak dikenal", "unknown error"),
+        };
+        if english { en } else { id }
+    }
+}
+
+/// The updater's status ([`Response::Update`]).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UpdateStatus {
+    pub state: UpdateState,
+    /// The version of the running island.
+    pub current: String,
+    /// The release on offer (`available`, `downloading`, `installing`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// Set with `failed`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<UpdateFailure>,
+    /// 0.0 to 1.0, with `downloading`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<f32>,
+    /// When the last check ended, success or failure (Unix seconds), if one did since the island started.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checked_at: Option<u64>,
 }
 
 /// What happened in an agent session ([`Request::Session`]). Wire form: snake_case
@@ -218,6 +353,8 @@ pub enum Response {
     /// Answer to `Ask`: the chosen option label, or `"timeout"` / `"dismissed"`.
     Answer { choice: String },
     State { state: serde_json::Value },
+    /// Answer to `Update`.
+    Update { status: UpdateStatus },
     Error { message: String },
 }
 
@@ -453,6 +590,9 @@ mod tests {
             Request::Session { id: "abc123".into(), project: Some("toko-online".into()), state: SessionState::NeedsInput, detail: Some("Claude needs your permission to use Bash".into()), ts: Some(1_795_000_000_000), agent: None },
             Request::Session { id: "s".into(), project: None, state: SessionState::End, detail: None, ts: None, agent: Some("gemini".into()) },
             Request::ClearData,
+            Request::Update { action: UpdateAction::Status },
+            Request::Update { action: UpdateAction::Check },
+            Request::Update { action: UpdateAction::Install },
             Request::Debug(DebugOp::OpenTab { id: "today".into() }),
             Request::Debug(DebugOp::Close),
             Request::Debug(DebugOp::State),
@@ -482,6 +622,8 @@ mod tests {
             Response::Answer { choice: "Setujui".into() },
             Response::State { state: serde_json::json!({"mode": "pill"}) },
             Response::Error { message: "nope".into() },
+            Response::Update { status: UpdateStatus { state: UpdateState::Downloading, current: "0.3.1".into(), version: Some("0.3.2".into()), error: None, progress: Some(0.5), checked_at: Some(1_795_000_000) } },
+            Response::Update { status: UpdateStatus { state: UpdateState::Failed, current: "0.3.1".into(), version: None, error: Some(UpdateFailure::RateLimited), progress: None, checked_at: None } },
         ];
         for r in responses {
             assert_eq!(decode_response(&encode(&r)).unwrap(), r);
@@ -521,6 +663,52 @@ mod tests {
         assert!(matches!(decode_request("{\"type\":\"session\",\"id\":\"x\"}"), Err(IpcError::Malformed(_))));
         // A negative / fractional ts is not a timestamp.
         assert!(decode_request("{\"type\":\"session\",\"id\":\"x\",\"state\":\"done\",\"ts\":-1}").is_err());
+    }
+
+    #[test]
+    fn ipc_update_wire_shape() {
+        assert_eq!(encode(&Request::Update { action: UpdateAction::Check }), "{\"type\":\"update\",\"action\":\"check\"}\n");
+        // Hand-written, and the answer with only what is set.
+        assert_eq!(decode_request("{\"type\":\"update\",\"action\":\"install\"}").unwrap(), Request::Update { action: UpdateAction::Install });
+        assert!(matches!(decode_request("{\"type\":\"update\",\"action\":\"reboot\"}"), Err(IpcError::Malformed(_))));
+        assert!(matches!(decode_request("{\"type\":\"update\"}"), Err(IpcError::Malformed(_))));
+        let st = UpdateStatus { state: UpdateState::UpToDate, current: "0.3.2".into(), version: None, error: None, progress: None, checked_at: Some(7) };
+        assert_eq!(encode(&Response::Update { status: st }), "{\"type\":\"update\",\"status\":{\"state\":\"up_to_date\",\"current\":\"0.3.2\",\"checked_at\":7}}\n");
+        // An answer with more fields than this build knows still reads.
+        let r = decode_response("{\"type\":\"update\",\"status\":{\"state\":\"available\",\"current\":\"0.3.1\",\"version\":\"0.3.2\",\"new_field\":1}}").unwrap();
+        assert!(matches!(r, Response::Update { status } if status.state == UpdateState::Available && status.version.as_deref() == Some("0.3.2")));
+        assert_eq!(UpdateAction::parse(" Check "), Some(UpdateAction::Check));
+        assert_eq!(UpdateAction::parse("now"), None);
+    }
+
+    #[test]
+    fn update_failures_are_sorted_and_carry_no_server_text() {
+        use UpdateFailure::*;
+        for (msg, want) in [
+            ("HTTP 403", RateLimited),
+            ("HTTP 429", RateLimited),
+            ("HTTP 404", NotFound),
+            ("HTTP 502", Server),
+            ("HTTP 418", BadAnswer),
+            ("connect failed", Network),
+            ("send: The operation timed out (0x80072EE2)", Network),
+            ("download cut short (5 of 9 bytes)", Network),
+            ("stopped", Stopped),
+            ("response too large", BadAnswer),
+            ("release JSON: expected value at line 1 column 1", BadAnswer),
+            ("release has no moku-setup.exe.sig (unsigned)", BadAnswer),
+            ("asset URL not allowed: https://evil.example/x", BadAnswer),
+            ("tag \"nightly\" is not a version", BadAnswer),
+            ("something else entirely", Other),
+        ] {
+            assert_eq!(UpdateFailure::classify(msg), want, "{msg}");
+        }
+        for f in [Network, RateLimited, Server, NotFound, BadAnswer, Stopped, Install, Other] {
+            for en in [false, true] {
+                let t = f.text(en);
+                assert!(!t.is_empty() && !t.contains("http") && !t.ends_with('.'), "{t}");
+            }
+        }
     }
 
     const SID: &str = "S-1-5-21-1111111111-2222222222-3333333333-1001";

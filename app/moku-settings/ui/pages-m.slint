@@ -81,18 +81,20 @@ component PresetChip inherits Rectangle {
     in property <string> text;
     in property <bool> on;
     callback clicked();
-    height: 30px;
-    border-radius: 15px;
-    background: root.on ? Theme.accent : ta.has-hover ? #ffffff24 : #ffffff14;
+    height: 32px;
+    border-radius: Theme.radius-ctl;
+    background: root.on ? Theme.accent-soft : ta.has-hover ? Theme.control-hi : Theme.control;
+    border-width: 1px;
+    border-color: root.on ? Theme.accent-line : Theme.line-strong;
     animate background { duration: 100ms; }
     HorizontalLayout {
-        padding-left: 14px;
-        padding-right: 14px;
+        padding-left: 16px;
+        padding-right: 16px;
         Text {
             text: root.text;
-            font-size: 12.5px;
-            font-weight: root.on ? 600 : 400;
-            color: root.on ? #ffffff : Theme.text2;
+            font-size: Theme.fs-body;
+            font-weight: root.on ? Theme.fw-bold : Theme.fw-regular;
+            color: root.on ? Theme.text : Theme.text2;
             vertical-alignment: center;
         }
     }
@@ -107,20 +109,20 @@ component SecretField inherits Rectangle {
     in-out property <string> text;
     in property <string> placeholder;
     in property <bool> invalid: false;
-    height: 30px;
+    height: 32px;
     width: 200px;
-    border-radius: 10px;
-    background: #00000033;
-    border-width: 1px;
-    border-color: root.invalid ? Theme.red : ti.has-focus ? Theme.accent : #ffffff1f;
+    border-radius: Theme.radius-ctl;
+    background: Theme.bg;
+    border-width: root.invalid || ti.has-focus ? 2px : 1px;
+    border-color: root.invalid ? Theme.danger : ti.has-focus ? Theme.accent : Theme.line-strong;
     ti := TextInput {
         x: 10px;
         width: root.width - 20px;
         height: root.height;
         vertical-alignment: center;
-        font-size: 12.5px;
+        font-size: Theme.fs-body;
         color: Theme.text;
-        selection-background-color: #0a84ff99;
+        selection-background-color: Theme.accent-line;
         wrap: no-wrap;
         input-type: password;
         text <=> root.text;
@@ -128,7 +130,7 @@ component SecretField inherits Rectangle {
     if root.text == "" && !ti.has-focus: Text {
         x: 10px;
         text: root.placeholder;
-        font-size: 12.5px;
+        font-size: Theme.fs-body;
         color: Theme.text3;
         vertical-alignment: center;
         height: root.height;
@@ -137,20 +139,20 @@ component SecretField inherits Rectangle {
 
 // The privacy note in both languages. Shown on the AI page and in the first-run setup.
 export component PrivacyNote inherits Rectangle {
-    background: #30d15814;
-    border-radius: 14px;
+    background: Theme.card;
+    border-radius: Theme.radius-card;
     border-width: 1px;
-    border-color: #30d15838;
+    border-color: Theme.line;
     VerticalLayout {
-        padding: 14px;
+        padding: 16px;
         spacing: 8px;
         HorizontalLayout {
             spacing: 8px;
-            Glyph { g: "\u{E72E}"; font-size: 14px; width: 18px; color: Theme.green; }
-            Text { text: "Privasi"; font-size: 13px; font-weight: 600; color: Theme.text; vertical-alignment: center; }
+            Glyph { g: "\u{E72E}"; font-size: 14px; width: 18px; color: Theme.accent; }
+            Text { text: "Privasi"; font-size: Theme.fs-body; font-weight: Theme.fw-bold; color: Theme.text; vertical-alignment: center; }
         }
         // Only the language of the window (Settings → Umum → Bahasa; Indonesian by default), not both stacked.
-        Text { text: Cfg.f.general-language == 1 ? AiCfg.note-en : AiCfg.note-id; font-size: 12px; color: Theme.text2; wrap: word-wrap; }
+        Text { text: Cfg.f.general-language == 1 ? AiCfg.note-en : AiCfg.note-id; font-size: Theme.fs-small; color: Theme.text2; wrap: word-wrap; }
     }
 }
 
@@ -166,21 +168,21 @@ component FactRow inherits Rectangle {
     }
     if AiCfg.editing != root.index: HorizontalLayout {
         padding-left: 16px;
-        padding-right: 14px;
-        padding-top: 7px;
-        padding-bottom: 7px;
-        spacing: 10px;
+        padding-right: 16px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        spacing: 12px;
         VerticalLayout {
             alignment: center;
             horizontal-stretch: 1;
             spacing: 1px;
-            Text { text: root.text; font-size: 12.5px; color: Theme.text; wrap: word-wrap; }
-            Text { text: root.date; font-size: 10.5px; color: Theme.text3; }
+            Text { text: root.text; font-size: Theme.fs-body; color: Theme.text; wrap: word-wrap; }
+            Text { text: root.date; font-size: Theme.fs-caption; color: Theme.text3; }
         }
         VerticalLayout {
             alignment: center;
             HorizontalLayout {
-                spacing: 6px;
+                spacing: 8px;
                 Btn { text: "Ubah"; clicked => { AiCfg.editing = root.index; } }
                 Btn { text: "Hapus"; kind: "danger"; clicked => { AiCfg.delete-fact(root.index); } }
             }
@@ -188,10 +190,10 @@ component FactRow inherits Rectangle {
     }
     if AiCfg.editing == root.index: HorizontalLayout {
         padding-left: 16px;
-        padding-right: 14px;
+        padding-right: 16px;
         padding-top: 8px;
         padding-bottom: 8px;
-        spacing: 10px;
+        spacing: 12px;
         VerticalLayout {
             alignment: center;
             horizontal-stretch: 1;
@@ -203,7 +205,7 @@ component FactRow inherits Rectangle {
         VerticalLayout {
             alignment: center;
             HorizontalLayout {
-                spacing: 6px;
+                spacing: 8px;
                 Btn {
                     text: "Simpan";
                     kind: "accent";
@@ -225,7 +227,7 @@ export component AiPage inherits Page {
 
     PrivacyNote { }
 
-    SectionLabel { text: "TANYA AI"; }
+    SectionLabel { text: "Tanya AI"; }
     Card {
         ToggleSetting {
             first: true;
@@ -252,17 +254,17 @@ export component AiPage inherits Page {
         }
     }
 
-    SectionLabel { text: "PENYEDIA"; }
+    SectionLabel { text: "Penyedia"; }
     Card {
         Setting {
             first: true;
             title: "Penyedia";
             subtitle: "Semua yang kompatibel dengan OpenAI. Ollama dan LM Studio berjalan di PC ini.";
             VerticalLayout {
-                spacing: 6px;
+                spacing: 8px;
                 alignment: center;
                 HorizontalLayout {
-                    spacing: 6px;
+                    spacing: 8px;
                     alignment: end;
                     for n[i] in AiCfg.presets-a: PresetChip {
                         text: n;
@@ -271,7 +273,7 @@ export component AiPage inherits Page {
                     }
                 }
                 HorizontalLayout {
-                    spacing: 6px;
+                    spacing: 8px;
                     alignment: end;
                     for n[i] in AiCfg.presets-b: PresetChip {
                         text: n;
@@ -331,7 +333,7 @@ export component AiPage inherits Page {
     }
     Text {
         text: "Kunci disimpan di Windows Credential Manager, satu per penyedia, dan tidak pernah di config.toml atau log. Moku hanya menghubungi alamat di atas.";
-        font-size: 11.5px;
+        font-size: Theme.fs-small;
         color: Theme.text3;
         wrap: word-wrap;
     }
@@ -344,7 +346,7 @@ export component MemoriPage inherits Page {
     subtitle: "Apa yang boleh ikut dikirim ke AI, dan apa yang Moku ingat. Semuanya disimpan di PC ini, dienkripsi untuk akun Windows-mu.";
     init => { AiCfg.reload(); }
 
-    SectionLabel { text: "KONTEKS YANG BOLEH DIKIRIM"; }
+    SectionLabel { text: "Konteks yang boleh dikirim"; }
     Card {
         Setting {
             first: true;
@@ -391,12 +393,12 @@ export component MemoriPage inherits Page {
     }
     Text {
         text: "Tidak pernah dikirim, apa pun pengaturannya: riwayat clipboard, isi notifikasi, hasil OCR atau isi layar, kode OTP, sesi agen coding, dan lokasi presisi.";
-        font-size: 11.5px;
+        font-size: Theme.fs-small;
         color: Theme.text3;
         wrap: word-wrap;
     }
 
-    SectionLabel { text: "MEMORI"; }
+    SectionLabel { text: "Memori"; }
     Card {
         ToggleSetting {
             first: true;
@@ -426,7 +428,7 @@ export component MemoriPage inherits Page {
         }
     }
 
-    SectionLabel { text: "YANG KUINGAT"; }
+    SectionLabel { text: "Yang kuingat"; }
     Card {
         if AiCfg.facts.length == 0 && !AiCfg.memory-broken: Setting {
             first: true;
@@ -463,7 +465,7 @@ export component MemoriPage inherits Page {
         }
     }
 
-    SectionLabel { text: "DATA"; }
+    SectionLabel { text: "Data"; }
     Card {
         Setting {
             first: true;

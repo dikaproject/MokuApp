@@ -366,6 +366,26 @@ mod tests {
     }
 
     #[test]
+    fn config_lyrics_word_highlight_defaults_on_and_round_trips() {
+        let c = Config::default();
+        assert!(c.media.lyrics_word_highlight, "on by default");
+        // A config written before the key existed keeps the default.
+        let (old, w) = Config::parse("[media]\nlyrics = true\n");
+        assert!(w.is_empty(), "{w:?}");
+        assert!(old.media.lyrics_word_highlight);
+        // Off survives a save / load; a wrong type falls back to the default with one warning.
+        let mut off = Config::default();
+        off.media.lyrics_word_highlight = false;
+        let text = off.to_toml();
+        let (back, w) = Config::parse(&text);
+        assert!(w.is_empty(), "{w:?}");
+        assert!(!back.media.lyrics_word_highlight);
+        let (bad, w) = Config::parse("[media]\nlyrics_word_highlight = \"nope\"\n");
+        assert_eq!(w.len(), 1, "{w:?}");
+        assert!(bad.media.lyrics_word_highlight);
+    }
+
+    #[test]
     fn config_invalid_values_fall_back() {
         let (c, w) = Config::parse("[island]\nscale = 9\n[media]\nenabled = \"yes\"\nlyrics = false\n");
         assert_eq!(w.len(), 2, "{w:?}");

@@ -108,7 +108,7 @@ mod tests {
         for prefix in ["agents", "ai", "notify", "notify_mirror"] {
             assert!(r.actions.contains_key(prefix), "no action handler for {prefix}.*");
         }
-        for kind in [IpcKind::Ask, IpcKind::Session, IpcKind::Notify] {
+        for kind in [IpcKind::Ask, IpcKind::Session, IpcKind::Notify, IpcKind::Update] {
             assert!(r.ipc.contains_key(&kind), "no IPC handler for {kind:?}");
         }
         assert!(r.services.iter().any(|s| s.name == "notify-mirror"), "the mirror's service is not registered");

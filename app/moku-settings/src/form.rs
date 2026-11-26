@@ -73,6 +73,7 @@ impl Form {
             media_enabled: c.media.enabled,
             media_lyrics: c.media.lyrics,
             media_lyrics_in_pill: c.media.lyrics_in_pill,
+            media_lyrics_word_highlight: c.media.lyrics_word_highlight,
             volume_osd_enabled: c.volume_osd.enabled,
             control_enabled: c.control.enabled,
             today_enabled: c.today.enabled,
@@ -173,6 +174,7 @@ impl Form {
         cfg.media.enabled = self.media_enabled;
         cfg.media.lyrics = self.media_lyrics;
         cfg.media.lyrics_in_pill = self.media_lyrics_in_pill;
+        cfg.media.lyrics_word_highlight = self.media_lyrics_word_highlight;
         cfg.volume_osd.enabled = self.volume_osd_enabled;
         cfg.control.enabled = self.control_enabled;
         cfg.today.enabled = self.today_enabled;
@@ -285,6 +287,7 @@ mod tests {
         f.media_enabled = false;
         f.media_lyrics = false;
         f.media_lyrics_in_pill = true;
+        f.media_lyrics_word_highlight = false;
         f.volume_osd_enabled = false;
         f.control_enabled = false;
         f.today_enabled = false;
@@ -341,7 +344,7 @@ mod tests {
         assert_eq!(c.appearance.accent, "#BF5AF2");
         assert!(!c.appearance.follow_album_color);
         assert_eq!(c.appearance.animations, Animations::Off);
-        assert!(!c.media.enabled && !c.media.lyrics && c.media.lyrics_in_pill);
+        assert!(!c.media.enabled && !c.media.lyrics && c.media.lyrics_in_pill && !c.media.lyrics_word_highlight);
         assert!(!c.volume_osd.enabled && !c.control.enabled);
         assert!(!c.today.enabled && !c.today.weather);
         assert_eq!(c.today.city, "Bandung");

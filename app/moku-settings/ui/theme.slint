@@ -1,34 +1,93 @@
-// Colours and type, from pratinjau/00-Ringkasan.png (same palette as the island's ui::color).
+// Moku settings: one design system, driven by these tokens (every page reads them; nothing else
+// in ui/ should hard-code a colour, a size or a radius).
+//
+// ONE accent, everything else neutral
+//   The accent is the user's (Settings -> Tampilan -> Warna aksen = appearance.accent, default
+//   #0A84FF, set from Rust into `accent`). It is used ONLY for: the ON state of a toggle, primary
+//   buttons, the selected segment / chip / sidebar item, links, keyboard focus and text-field
+//   focus, progress (bars, the slider fill) and the running dot in the sidebar. Nothing else is
+//   coloured: icons, tiles, tags, cards and section labels are grey.
+//   `on-accent` (set from Rust, WCAG contrast) is the text colour on an accent fill: the ink for
+//   light accents (the default blue included), white for dark ones.
+//
+// Colour (cool neutral, flat: no gradients, no blur, no glass, no shadows)
+//   token        value      where                                          contrast (text on it)
+//   bg           #0F1115    window, sidebar, onboarding (level 1: page)
+//   card         #161A20    cards, feature tiles, dialogs (level 2)
+//   control      #1F242B    fields, steppers, segmented track, buttons on a card
+//   control-hi   #2A3038    hover of a control, off-state of a toggle, tile behind a glyph
+//   line         #262B33    1 px border of cards, row dividers, sidebar edge
+//   line-strong  #4A525E    1 px border of controls, off-toggle edge
+//   text         #ECEEF1    titles, values, row titles              16.3 on bg, 15.0 on card
+//   text2        #A6ADB8    subtitles of a page, icons, secondary   8.4 on bg, 7.7 on card, 6.9 on control
+//   text3        #8A919D    row hints, placeholders, tags, footers  6.0 on bg, 5.5 on card, 4.9 on control
+//   danger       #F87171    the ONE red: destructive buttons, errors, invalid fields   6.3 on card
+//   accent       #0A84FF    (default) see above                              4.8 on card
+//   Success and "on" are never green: they are text ("Sudah terbaru"), a filled toggle or a check
+//   glyph. "segera" is an outlined grey chip.
+//
+// Type (Segoe UI Variable / Segoe UI): 2 weights, 6 sizes, sentence case everywhere
+//   display 28 / semibold   onboarding headlines
+//   title   22 / semibold   page titles
+//   heading 16 / semibold   the app name, dialog titles, card headlines
+//   body    13 / regular    row titles, values, buttons, fields; semibold = emphasis (primary
+//                           button, selected segment, section labels)
+//   small   12 / regular    subtitles, hints, section labels (secondary grey, semibold)
+//   caption 11 / regular    tags, footers
+//   Hierarchy comes from size, weight and the three greys, never from colour.
+//
+// Shape and space (4-px base, 8-px rhythm)
+//   radius-card 12   cards, tiles, dialogs, previews
+//   radius-ctl   8   buttons, fields, segmented, steppers, chips, nav items
+//   radius-inner 6   an item inside a control (selected segment)
+//   space: 4 / 8 / 12 / 16 / 24 / 32; a row has 16 px sides and 12 px above and below; a page has
+//   32 px sides, 24 px above; cards sit 8 px apart; a section label is 32 px high.
+//
+// States that do not rely on colour: hover = a lighter grey fill; selected = a fill AND semibold
+// text (and a 3 px bar on the sidebar item); focus = a 2 px accent outline; disabled = 45 % opacity
+// with no hover; ON toggle = knob on the right, OFF = knob on the left with a visible edge.
 export global Theme {
     // Set from Rust at start: "Segoe UI Variable Text" / "Segoe UI" and "Segoe Fluent Icons" /
     // "Segoe MDL2 Assets", whichever is installed.
     in property <string> font: "Segoe UI";
     in property <string> icons: "Segoe MDL2 Assets";
-    // Accent from the config (appearance.accent); drives sliders, focus rings, previews.
+    // Accent from the config (appearance.accent) and the text colour that reads on it.
     in property <color> accent: #0A84FF;
+    in property <color> on-accent: #0F1115;
+    // The knob of a toggle that is ON: white, unless white has under 3:1 on the accent (then the ink).
+    in property <color> knob: #FFFFFF;
     // Debug flag --scroll: pages start scrolled by this much.
     in property <length> start-scroll: 0px;
 
-    out property <color> text: #ffffff;
-    out property <color> text2: #ffffffb8;   // 72 %
-    out property <color> text3: #ffffff75;   // 46 %
-    out property <color> fill: #ffffff14;    // 8 %
-    out property <color> fill2: #ffffff24;   // 14 %
-    out property <color> fill3: #ffffff2e;   // 18 %
-    out property <color> card: #ffffff12;
-    out property <color> line: #ffffff14;
-    out property <color> ink: #14141c;       // dark text on white buttons
+    out property <color> bg: #0F1115;
+    out property <color> card: #161A20;
+    out property <color> control: #1F242B;
+    out property <color> control-hi: #2A3038;
+    out property <color> line: #262B33;
+    out property <color> line-strong: #4A525E;
+    out property <color> text: #ECEEF1;
+    out property <color> text2: #A6ADB8;
+    out property <color> text3: #8A919D;
+    out property <color> danger: #F87171;
+    // The accent as a quiet fill (selected segment / sidebar item) and its edge.
+    out property <color> accent-soft: Theme.accent.with-alpha(0.18);
+    out property <color> accent-line: Theme.accent.with-alpha(0.55);
+    // A dim layer behind a dialog.
+    out property <color> scrim: #000000b3;
 
-    out property <color> blue: #0A84FF;
-    out property <color> green: #30D158;
-    out property <color> orange: #FF9F0A;
-    out property <color> red: #FF453A;
-    out property <color> yellow: #FFD60A;
-    out property <color> purple: #BF5AF2;
-    out property <color> teal: #64D2FF;
-    out property <color> mint: #63E6BE;
-    out property <color> pink: #FF375F;
+    out property <length> radius-card: 12px;
+    out property <length> radius-ctl: 8px;
+    out property <length> radius-inner: 6px;
 
-    // Window background: navy to plum, like the mockup's glass over the wallpaper.
-    out property <brush> window-bg: @linear-gradient(135deg, #101a36 0%, #1a1d3f 45%, #2d1d44 80%, #3d2142 100%);
+    out property <length> fs-display: 28px;
+    out property <length> fs-heading: 16px;
+    out property <length> fs-title: 22px;
+    out property <length> fs-body: 13px;
+    out property <length> fs-small: 12px;
+    out property <length> fs-caption: 11px;
+    out property <int> fw-regular: 400;
+    out property <int> fw-bold: 600;
+
+    // Window background: flat.
+    out property <brush> window-bg: Theme.bg;
 }

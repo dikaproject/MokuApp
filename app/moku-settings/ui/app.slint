@@ -30,31 +30,38 @@ component NavItem inherits Rectangle {
     in property <bool> soon;
     callback clicked();
     height: 36px;
-    border-radius: 10px;
-    background: root.selected ? #ffffff26 : ta.has-hover ? #ffffff10 : transparent;
+    border-radius: Theme.radius-ctl;
+    // Selected: the accent wash, a 3 px bar on the left AND semibold text (not colour alone).
+    background: root.selected ? Theme.accent-soft : ta.has-hover ? #ffffff10 : transparent;
+    if root.selected: Rectangle {
+        x: 0;
+        y: 8px;
+        width: 3px;
+        height: root.height - 16px;
+        border-radius: 1.5px;
+        background: Theme.accent;
+    }
     HorizontalLayout {
         padding-left: 12px;
-        padding-right: 10px;
-        spacing: 10px;
+        padding-right: 8px;
+        spacing: 12px;
         Glyph {
             g: root.glyph;
             font-size: 14px;
             width: 18px;
-            color: root.selected ? Theme.text : root.soon ? Theme.text3 : Theme.text2;
+            color: root.selected ? Theme.text : Theme.text2;
         }
         Text {
             text: root.label;
-            font-size: 13px;
-            font-weight: root.selected ? 600 : 400;
+            font-size: Theme.fs-body;
+            font-weight: root.selected ? Theme.fw-bold : Theme.fw-regular;
             color: root.selected ? Theme.text : root.soon ? Theme.text3 : Theme.text2;
             vertical-alignment: center;
             horizontal-stretch: 1;
         }
-        if root.soon: Text {
-            text: "segera";
-            font-size: 10px;
-            color: Theme.orange;
-            vertical-alignment: center;
+        if root.soon: VerticalLayout {
+            alignment: center;
+            Badge { text: "segera"; }
         }
     }
     ta := TouchArea {
@@ -69,23 +76,23 @@ component Confirm inherits Rectangle {
     in property <string> action;
     callback accepted();
     callback cancelled();
-    background: #000000a6;
+    background: Theme.scrim;
     TouchArea { clicked => { root.cancelled(); } }
     Rectangle {
         width: 420px;
         height: dialog.preferred-height;
         x: (root.width - self.width) / 2;
         y: (root.height - self.height) / 2;
-        background: #1c1a30;
-        border-radius: 18px;
+        background: Theme.card;
+        border-radius: Theme.radius-card;
         border-width: 1px;
-        border-color: #ffffff2e;
+        border-color: Theme.line-strong;
         TouchArea { }
         dialog := VerticalLayout {
-            padding: 22px;
-            spacing: 10px;
-            Text { text: root.title; font-size: 17px; font-weight: 700; color: Theme.text; wrap: word-wrap; }
-            Text { text: root.message; font-size: 12.5px; color: Theme.text2; wrap: word-wrap; }
+            padding: 24px;
+            spacing: 8px;
+            Text { text: root.title; font-size: Theme.fs-heading; font-weight: Theme.fw-bold; color: Theme.text; wrap: word-wrap; }
+            Text { text: root.message; font-size: Theme.fs-body; color: Theme.text2; wrap: word-wrap; }
             Rectangle { height: 8px; }
             HorizontalLayout {
                 alignment: end;
@@ -107,7 +114,7 @@ export component SettingsWindow inherits Window {
     min-height: 640px;
     preferred-width: 1000px;
     preferred-height: 700px;
-    background: #101a36;
+    background: Theme.bg;
 
     property <[NavEntry]> nav: [
         { glyph: "\u{E9E9}", label: "Umum" },
@@ -132,8 +139,8 @@ export component SettingsWindow inherits Window {
         // ---------------------------------------------------------- sidebar
         Rectangle {
             x: 0;
-            width: 216px;
-            background: #00000030;
+            width: 224px;
+            background: Theme.bg;
             Rectangle {
                 x: parent.width - 1px;
                 width: 1px;
@@ -141,17 +148,17 @@ export component SettingsWindow inherits Window {
             }
             VerticalLayout {
                 padding: 16px;
-                padding-top: 20px;
-                spacing: 3px;
+                padding-top: 24px;
+                spacing: 4px;
                 HorizontalLayout {
-                    spacing: 10px;
+                    spacing: 12px;
                     padding-left: 4px;
-                    padding-bottom: 14px;
+                    padding-bottom: 16px;
                     VerticalLayout {
                         alignment: center;
                         Image { source: @image-url("../assets/logo.png"); width: 30px; height: 30px; }
                     }
-                    Text { text: "Moku"; font-size: 16px; font-weight: 700; color: Theme.text; vertical-alignment: center; }
+                    Text { text: "Moku"; font-size: Theme.fs-heading; font-weight: Theme.fw-bold; color: Theme.text; vertical-alignment: center; }
                 }
                 for item[i] in root.nav: NavItem {
                     glyph: item.glyph;
@@ -162,21 +169,21 @@ export component SettingsWindow inherits Window {
                 }
                 Rectangle { vertical-stretch: 1; }
                 HorizontalLayout {
-                    spacing: 7px;
-                    padding-left: 6px;
+                    spacing: 8px;
+                    padding-left: 8px;
                     VerticalLayout {
                         alignment: center;
-                        Rectangle { width: 7px; height: 7px; border-radius: 3.5px; background: Theme.green; }
+                        Rectangle { width: 8px; height: 8px; border-radius: 4px; background: Theme.accent; }
                     }
-                    Text { text: "Moku " + Cfg.version; font-size: 11px; color: Theme.text3; vertical-alignment: center; }
+                    Text { text: "Moku " + Cfg.version; font-size: Theme.fs-caption; color: Theme.text3; vertical-alignment: center; }
                 }
             }
         }
 
         // ---------------------------------------------------------- pages
         Rectangle {
-            x: 216px;
-            width: root.width - 216px;
+            x: 224px;
+            width: root.width - 224px;
             for e in [Cfg.epoch]: Rectangle {
                 if Cfg.page == 0: UmumPage { }
                 if Cfg.page == 1: IslandPage { }
@@ -198,17 +205,17 @@ export component SettingsWindow inherits Window {
 
     // Saved / error messages.
     if Cfg.toast != "": Rectangle {
-        width: toast-text.preferred-width + 36px;
-        height: 36px;
+        width: toast-text.preferred-width + 32px;
+        height: 40px;
         x: root.width - self.width - 24px;
-        y: root.height - 56px;
-        border-radius: 18px;
-        background: #26243f;
+        y: root.height - 64px;
+        border-radius: Theme.radius-ctl;
+        background: Theme.card;
         border-width: 1px;
-        border-color: #ffffff2e;
+        border-color: Theme.line-strong;
         toast-text := Text {
             text: Cfg.toast;
-            font-size: 12.5px;
+            font-size: Theme.fs-body;
             color: Theme.text;
             horizontal-alignment: center;
             vertical-alignment: center;

@@ -34,8 +34,10 @@ cargo build --release          # → moku.exe, moku-settings.exe, mokuctl.exe
 cargo test --workspace
 ```
 
-`moku.exe` flags (testing only): `--state idle|hover|music|music-panel|panel` (fixed state for
-screenshots, `--tab <id>` with `panel`), `--demo` (loops the prototype states), `--gpu`, `--blur`.
+`moku.exe` flags (testing only): `--state idle|hover|music|music-panel|lyrics|lyrics-panel|panel` (fixed state for
+screenshots, `--tab <id>` with `panel`; `lyrics` / `lyrics-panel` run a fake player with timed lyrics through the
+real media and lyrics code, from `MOKU_DEMO_POS_MS` (default 1000), to look at and measure the word highlight),
+`--demo` (loops the prototype states), `--gpu`, `--blur`.
 In `--state`/`--demo` modes there is no tray, pipe, hit window, services or `on_start` — use a
 normal run plus `mokuctl debug …` to test a feature.
 
@@ -48,8 +50,9 @@ normal run plus `mokuctl debug …` to test a feature.
 | `registry.rs` | `Registry`, `TabSpec`, `order`, `ActionEvent`/`ActionKind`, `IpcKind`, `AppEvent`, `ServiceSpec` |
 | `activity.rs` | `Activity`, `priority`, `OSD_SECS` …, the pure priority `Stack` |
 | `services.rs` | `ServiceCtx`, service start/stop |
-| `ui/` | widget tree (`mod.rs`), layout (`layout.rs`), composite widgets (`widgets.rs`), glyphs (`icons.rs`), text editing model (`text_edit.rs`), QR encoder + `qr(text)` widget (`qr.rs`) |
-| `scene/` | composition engine (springs, morph, sprites, split bubble), D2D/DirectWrite (`gfx.rs`), `reduce.rs` (reduce motion: pure mapping, tested) |
+| `ui/` | widget tree (`mod.rs`), layout (`layout.rs`), composite widgets (`widgets.rs`), glyphs (`icons.rs`), text editing model (`text_edit.rs`), QR encoder + `qr(text)` widget (`qr.rs`), the word-highlight line `karaoke(..)`: nodes, word positions, key-frame plan (`karaoke.rs`, pure + tested) |
+| `scene/` | composition engine (springs, morph, sprites, split bubble), D2D/DirectWrite (`gfx.rs`), `reduce.rs` (reduce motion: pure mapping, tested), `karaoke.rs` (the compositor side of the word highlight) |
+| `features/lyrics/` | synced lyrics: `lrc.rs` (LRC parser, enhanced word stamps kept), `words.rs` (when each word is sung: real stamps or an estimate), `title.rs` (cleaning messy titles / artists for the lookup), `lrclib.rs` (the client: the request plan, picking the hit), `mod.rs` (service, cache, the sung line) |
 | `shell/` | visual / hit / tray windows, input routing, hotkeys, fullscreen hide, tray menu; keyboard focus, IME, clipboard text (`keyboard.rs`); which monitor and where on it (`monitors.rs`, pure + tested); the input window's rectangle and region, which reaches up to the monitor's top edge over each shape's width (`hit.rs`, pure + tested) |
 | `ipc_server.rs` | named-pipe server, `Reply` |
 | `hotkeys.rs` | the five global hotkeys in one place (v0.3 fix): `register` refuses a combination another Moku feature holds (`Outcome::Clash`) and reports one another program holds (`Taken`), `announce` raises the one pill "Pintasan ... dipakai aplikasi lain" once per feature and combination; `moku_core::hotkey::{Slot, clash}` is the same rule for the settings app |
@@ -378,6 +381,29 @@ on shape geometry, offset, scale and opacity, started once and finite, so nothin
 glow steady, `"off"` shows the end state at once. A layer's children, bottom to top, are: glows
 (`under_root`), block sprites, live items (`live_root`), keyed sprites. `Op::Poly` is a filled polygon.
 
+**Karaoke line** (`karaoke(KaraokeSpec { id, text, dim, words, anchor, rise })`, `ui/karaoke.rs` + `scene/karaoke.rs`; used by the
+Musik panel's sung line and the lyric pill, setting `media.lyrics_word_highlight`): one line of text whose words light up in time
+with the music. It lays out like `text(..)` and draws nothing into its block (it produces `Live::Karaoke`); the scene draws the line
+**twice** into two sprites that are children of the sprite of the block the line is in (so they fade and slide in with the panel):
+the dim base and, on top, the bright copy seen through a `CompositionMaskBrush` whose mask is a linear gradient (opaque, a soft
+edge about 0.8 x the font size wide, transparent). One scalar `X` in a property set places the edge (the gradient's start and end
+points are expressions of it) and one `ScalarKeyFrameAnimation` on `X` moves it from where the voice is to the end of the line.
+Both layers are rasterised once when the line becomes the sung line; afterwards the compositor does all the work (no per-frame
+redraw, no timer). What the node carries: `words` (media ms and byte range per word: real stamps, or the estimate of
+`features/lyrics/words.rs`), `anchor` (the player's position as of an `Instant`, `playing`, `rate`: only the player's own reports
+change it) and `id` (track + line index). The pure parts, all unit-tested: `segs_for` (word → x), `x_at` (the lit width over time: each
+word eased half linear / half smoothstep, steady across pauses), `plan` (key frames from "now" to the end, sampled four times per
+word; a paused line is just placed), `needs_restart` (see below). **Sync**: a tree rebuilt for any reason keeps a running sweep by
+its `id`; it is restarted only after a pause, resume, seek, rate change or when it is more than 140 ms off the player's clock (the
+animation is started 20 ms ahead because the compositor picks it up a frame later). A new `id` (the next line) lets the old line
+fade up and out (150 ms) and the new one fade in rising `rise` DIP (190 / 260 ms, `appearance.animations` full); reduced = a
+short fade, off = instant. With animations reduced or off (or when the mask cannot be built) the line is just drawn bright. The
+sweep never marks the island as animating (`busy_until`). Right-to-left lines and lines with nothing to sing ("♪") are plain text.
+Word times: `words::spans(line, next_start)` uses real enhanced-LRC stamps when the lyrics have them, else
+`estimate`: the line is sung for `min(slot, clamp(letters x 80 ms x 1.75, 1.2 s, 8 s))` (slot = gap to the next line minus 150 ms; 5 s
+for the last line), spread over the words by syllables / letters (CJK and Thai: per character) with short pauses after commas and
+full stops. The estimate is approximate by nature.
+
 **Layout**: rows/cols give children their measured or fixed size; `grow`/`Fill` children share
 the rest; if fixed children overflow a row, auto-sized ones shrink (text ellipsises). Cross
 axis: `Px`, `Fill` or parent `Align::Stretch` = full, otherwise measured + aligned.
@@ -576,8 +602,11 @@ Protocol in `moku-core/src/ipc.rs`: one JSON line each way over the per-user pip
 request must arrive within 2 s. `Request::{Ping, Notify{title, body, icon, id, progress},
 Ask{title, detail, command, options, timeout_secs, kind, agent}, Todo{add},
 Session{id, project, state, detail, ts, agent},
-ClearData, Debug(DebugOp)}`,
-`Response::{Ok, Pong{version}, Answer{choice}, State{state}, Error{message}}`.
+ClearData, Update{action: status|check|install}, Debug(DebugOp)}`,
+`Response::{Ok, Pong{version}, Answer{choice}, State{state}, Update{status}, Error{message}}`.
+`Update` is the updater's (feature `update`; Settings → Tentang and `mokuctl update`): the answer is
+always the status `{state: idle|checking|up_to_date|available|downloading|installing|failed, current,
+version?, error?, progress?, checked_at?}`; `check` is the daily request made now and answers `checking`.
 `Ping`, `ClearData` (emits `AppEvent::DataCleared`, cancels pending saves, answers `Ok` once
 the writer thread is idle) and `Debug` are handled by the core; register handlers for the others:
 
@@ -656,7 +685,7 @@ release island started without `MOKU_DEBUG=1`.
 * Network: `crate::net::get(url, timeout) -> Result<(status, Vec<u8>), String>`,
   `get_text(url, timeout)`, `encode(s)` (query escaping), and `request(url, &Options, sink)` for
   anything else (POST, headers, a streamed answer, `Cancel`). Blocking — services and workers
-  only. Only the hosts listed in the README ("Network"): Open-Meteo, LRCLIB, the Hari ini ones of
+  only. Only the hosts listed in the README ("Network"): Open-Meteo, LRCLIB (at most four requests per track: `get`, then three searches with the title and artist cleaned by `features/lyrics/title.rs`), the Hari ini ones of
   v0.3 (the Google holiday calendar, BMKG, Frankfurter, Open-Meteo air quality), GitHub for updates,
   the user's own calendar addresses and the one base URL of Tanya AI (only while it is on, only
   when asked), each only while its feature is on. Services that need the Hari ini city

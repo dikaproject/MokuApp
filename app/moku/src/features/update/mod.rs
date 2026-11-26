@@ -23,6 +23,15 @@
 //!   that does not run from the install folder (portable zip, dev build) opens the release page
 //!   instead.
 //!
+//! **Manual check** (Settings → Tentang "Periksa sekarang", `mokuctl update check`): the same one
+//! request, made now, also while "Periksa pembaruan otomatis" is off (the user asked), and only
+//! when the updater is built in. A successful manual check is stamped like the daily one (the
+//! next automatic check comes a day later); a failed one leaves the stamp alone. The result is a
+//! short pill ("Moku sudah terbaru (x.y.z)", the usual offer pill, or "Gagal memeriksa
+//! pembaruan" with a few words of why) and is kept in the status the settings app reads over the
+//! pipe (`Request::Update`): `status`, `check`, `install` (the same install as the pill's
+//! "Perbarui"). The settings app polls `status` only while a check or download is under way.
+//!
 //! Test hooks (`MOKU_DEBUG=1`): `update.sample` shows the pill for a fake 9.9.9;
 //! `update.debug_feed:<path>` runs the "is it newer" step on a local release JSON file.
 
@@ -34,12 +43,14 @@ use std::io::{Read, Seek, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use moku_core::ipc::{Request, Response, UpdateAction, UpdateFailure, UpdateState as Wire, UpdateStatus};
 use moku_core::release::{self, Release};
 use serde::{Deserialize, Serialize};
 
 use crate::activity::{Activity, priority};
 use crate::app::{App, Redraw, Ui};
 use crate::i18n::{tr, tr_s};
+use crate::ipc_server::Reply;
 use crate::registry::*;
 use crate::services::ServiceCtx;
 use crate::ui::*;
@@ -56,12 +67,26 @@ const MAX_SLEEP: u64 = 6 * 60 * 60;
 /// Largest installer accepted.
 const MAX_SETUP_BYTES: u64 = 256 * 1024 * 1024;
 const FAIL_SECS: f32 = 8.0;
+/// How long "Moku sudah terbaru" / "Gagal memeriksa pembaruan" stay after a manual check.
+const RESULT_SECS: f32 = 5.0;
 
 #[derive(Default)]
 struct UpdateState {
     /// The newer release on offer (the pill is shown while this is `Some`).
     offer: Option<Release>,
     phase: Phase,
+    /// A manual check is running.
+    checking: bool,
+    /// How the last check (or install) ended and when (Unix seconds), since the island started.
+    last: Option<(u64, Last)>,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Last {
+    UpToDate,
+    /// Found a newer release (it may have been dismissed since).
+    Offered,
+    Failed(UpdateFailure),
 }
 
 #[derive(Default, Clone, PartialEq)]
@@ -78,6 +103,7 @@ pub fn register(r: &mut Registry) {
     r.add_state(UpdateState::default());
     r.on_action("update", on_action);
     r.on_start(on_start);
+    r.add_ipc_handler(IpcKind::Update, on_ipc);
     r.add_service(ServiceSpec { name: "update", enabled: |c| release::updater_available(c.update.check, release::REPO, release::UPDATE_PUBLIC_KEY), run: service });
 }
 
@@ -139,6 +165,7 @@ fn fail(app: &mut App, why: &str) {
     crate::log_error!("update: {why}");
     let st = app.state_mut::<UpdateState>();
     st.phase = Phase::Offer;
+    st.last = Some((unix_now(), Last::Failed(UpdateFailure::Install)));
     clear_offer(app);
     app.alert("update.failed", priority::WARNING, FAIL_SECS, |_| {
         pill([icon(icons::WARNING).color(color::ORANGE), text(tr("Pembaruan gagal", "Update failed")).semibold(), caption(tr("lihat log", "see the log"))])
@@ -220,6 +247,167 @@ fn install(app: &mut App) {
             Err(e) => fail(app, &e),
         });
     });
+}
+
+// ------------------------------------------------------------------------- IPC + manual check
+
+/// What a `check` request does.
+#[derive(Debug, PartialEq, Eq)]
+enum CheckPlan {
+    Start,
+    /// Nothing to do: a check is already running.
+    AlreadyChecking,
+    /// Nothing to do: an offer is being downloaded or installed.
+    Busy,
+    /// This build has no updater (no repository or no signing key): nothing may be fetched.
+    NotBuiltIn,
+}
+
+/// Decide a manual check. It depends only on the build and the updater's own state: whether
+/// "Periksa pembaruan otomatis" is on is not asked (the user pressed the button).
+fn plan_check(built_in: bool, st: &UpdateState) -> CheckPlan {
+    if !built_in {
+        CheckPlan::NotBuiltIn
+    } else if st.phase != Phase::Offer {
+        CheckPlan::Busy
+    } else if st.checking {
+        CheckPlan::AlreadyChecking
+    } else {
+        CheckPlan::Start
+    }
+}
+
+/// What an `install` request does.
+#[derive(Debug, PartialEq, Eq)]
+enum InstallPlan {
+    Go,
+    /// Already downloading or installing.
+    Busy,
+    /// No release on offer.
+    NoOffer,
+    NotBuiltIn,
+}
+
+fn plan_install(built_in: bool, st: &UpdateState) -> InstallPlan {
+    if !built_in {
+        InstallPlan::NotBuiltIn
+    } else if st.phase != Phase::Offer {
+        InstallPlan::Busy
+    } else if st.offer.is_none() {
+        InstallPlan::NoOffer
+    } else {
+        InstallPlan::Go
+    }
+}
+
+/// The status the settings app reads. Installing and downloading come first, then a running
+/// check; an offer on hand outranks the outcome of the last check (a failed re-check does not
+/// take the offer away).
+fn status_of(st: &UpdateState, current: &str) -> UpdateStatus {
+    let (state, progress) = match st.phase {
+        Phase::Installing => (Wire::Installing, None),
+        Phase::Downloading(got, total) => (Wire::Downloading, (total > 0).then(|| (got as f32 / total as f32).clamp(0.0, 1.0))),
+        Phase::Offer if st.checking => (Wire::Checking, None),
+        Phase::Offer if st.offer.is_some() => (Wire::Available, None),
+        Phase::Offer => match st.last {
+            Some((_, Last::Failed(_))) => (Wire::Failed, None),
+            Some((_, Last::UpToDate)) => (Wire::UpToDate, None),
+            _ => (Wire::Idle, None),
+        },
+    };
+    let error = match (state, st.last) {
+        (Wire::Failed, Some((_, Last::Failed(f)))) => Some(f),
+        _ => None,
+    };
+    UpdateStatus {
+        state,
+        current: current.to_string(),
+        version: st.offer.as_ref().map(|r| r.version.to_string()).filter(|_| matches!(state, Wire::Available | Wire::Downloading | Wire::Installing | Wire::Checking)),
+        error,
+        progress,
+        checked_at: st.last.map(|(at, _)| at),
+    }
+}
+
+/// Should a successful manual check move the daily stamp? Like the daily check itself: a
+/// success counts as today's check, a failure changes nothing (the daily retry rule stays).
+fn stamp_after_manual_check(ok: bool, now: u64) -> Option<Stamp> {
+    ok.then_some(Stamp { last_check: now })
+}
+
+fn on_ipc(app: &mut App, req: Request, reply: Reply) {
+    let Request::Update { action } = req else { return reply.error("not an update request") };
+    let built_in = release::updater_built_in(release::REPO, release::UPDATE_PUBLIC_KEY);
+    match action {
+        UpdateAction::Status => {}
+        UpdateAction::Check => match plan_check(built_in, app.state::<UpdateState>()) {
+            CheckPlan::NotBuiltIn => return reply.error("this build has no updater"),
+            CheckPlan::Start => start_manual_check(app),
+            CheckPlan::AlreadyChecking | CheckPlan::Busy => {}
+        },
+        UpdateAction::Install => match plan_install(built_in, app.state::<UpdateState>()) {
+            InstallPlan::NotBuiltIn => return reply.error("this build has no updater"),
+            InstallPlan::NoOffer => return reply.error("no update is on offer"),
+            InstallPlan::Go => install(app),
+            InstallPlan::Busy => {}
+        },
+    }
+    reply.send(Response::Update { status: status_of(app.state::<UpdateState>(), moku_core::VERSION) });
+}
+
+fn start_manual_check(app: &mut App) {
+    app.state_mut::<UpdateState>().checking = true;
+    crate::log_info!("update: manual check");
+    std::thread::spawn(move || {
+        let r = fetch_latest(&|| false);
+        if let Some(s) = stamp_after_manual_check(r.is_ok(), unix_now()) {
+            save_stamp(&stamp_file(), &s);
+        }
+        Ui::post(move |app| finish_check(app, r, true));
+    });
+}
+
+/// A check ended (the daily service, or a manual one). Keeps the result for the status; a manual
+/// check also answers with a short pill.
+fn finish_check(app: &mut App, r: Result<Option<Release>, String>, manual: bool) {
+    let now = unix_now();
+    if manual {
+        app.state_mut::<UpdateState>().checking = false;
+    }
+    match r {
+        Ok(Some(rel)) => {
+            app.state_mut::<UpdateState>().last = Some((now, Last::Offered));
+            show_offer(app, rel);
+        }
+        Ok(None) => {
+            crate::log_info!("update: Moku {} is up to date", moku_core::VERSION);
+            let st = app.state_mut::<UpdateState>();
+            st.last = Some((now, Last::UpToDate));
+            if manual {
+                if st.phase == Phase::Offer && st.offer.is_some() {
+                    clear_offer(app); // the release it pointed at is gone
+                }
+                app.alert("update.checked", priority::NOTIFICATION, RESULT_SECS, |app| {
+                    let v = moku_core::VERSION;
+                    pill([icon(icons::CHECK).color(app.base_accent()), text(tr_s(format!("Moku sudah terbaru ({v})"), format!("Moku is up to date ({v})"))).semibold()])
+                });
+            }
+        }
+        Err(e) => {
+            crate::log_warn!("update: check failed: {e}");
+            let why = UpdateFailure::classify(&e);
+            app.state_mut::<UpdateState>().last = Some((now, Last::Failed(why)));
+            if manual {
+                app.alert("update.check_failed", priority::WARNING, RESULT_SECS, move |_| {
+                    pill([
+                        icon(icons::WARNING).color(color::ORANGE),
+                        text(tr("Gagal memeriksa pembaruan", "Could not check for updates")).semibold(),
+                        caption(tr(why.text(false), why.text(true))),
+                    ])
+                });
+            }
+        }
+    }
 }
 
 fn open_url(url: &str) {
@@ -372,10 +560,10 @@ fn offer_from_json(json: &str, current: &str) -> Result<Option<Release>, String>
     Ok(release::is_newer(&rel.version.to_string(), current).then_some(rel))
 }
 
-fn check_once(ctx: &ServiceCtx) -> Result<Option<Release>, String> {
+/// The one request: `GET releases/latest`, and is it newer than this island?
+fn fetch_latest(stop: &dyn Fn() -> bool) -> Result<Option<Release>, String> {
     let mut body = Vec::new();
-    let stop = || ctx.should_stop();
-    fetch::get(&release::latest_release_api(release::REPO), Duration::from_secs(20), 1024 * 1024, &stop, |c, _| {
+    fetch::get(&release::latest_release_api(release::REPO), Duration::from_secs(20), 1024 * 1024, stop, |c, _| {
         body.extend_from_slice(c);
         Ok(())
     })?;
@@ -397,7 +585,7 @@ fn service(ctx: ServiceCtx) {
             }
             continue;
         }
-        let r = check_once(&ctx);
+        let r = fetch_latest(&|| ctx.should_stop());
         if ctx.should_stop() {
             return;
         }
@@ -406,11 +594,7 @@ fn service(ctx: ServiceCtx) {
             Err(_) => now.saturating_sub(DAY - RETRY_AFTER),
         };
         save_stamp(&path, &Stamp { last_check });
-        match r {
-            Ok(Some(rel)) => ctx.post(move |app| show_offer(app, rel)),
-            Ok(None) => crate::log_info!("update: Moku {} is up to date", moku_core::VERSION),
-            Err(e) => crate::log_warn!("update: check failed: {e}"),
-        }
+        ctx.post(move |app| finish_check(app, r, false));
     }
 }
 
@@ -471,6 +655,96 @@ mod tests {
         assert!(enabled(&c, "moku-app/moku", key.as_deref()));
         c.update.check = false;
         assert!(!enabled(&c, "moku-app/moku", key.as_deref()));
+    }
+
+    fn rel(v: &str) -> Release {
+        Release {
+            tag: format!("v{v}"),
+            version: release::Version::parse(v).unwrap(),
+            html_url: String::new(),
+            setup_url: String::new(),
+            sha256_url: String::new(),
+            sig_url: String::new(),
+            setup_size: 1000,
+        }
+    }
+
+    #[test]
+    fn a_manual_check_runs_whenever_the_updater_is_built_in_and_idle() {
+        let mut st = UpdateState::default();
+        assert_eq!(plan_check(true, &st), CheckPlan::Start);
+        // The automatic check being off is not an input: the button is an explicit request.
+        assert_eq!(plan_check(false, &st), CheckPlan::NotBuiltIn, "no updater in this build: nothing is fetched");
+        st.checking = true;
+        assert_eq!(plan_check(true, &st), CheckPlan::AlreadyChecking, "one request at a time");
+        st.checking = false;
+        st.offer = Some(rel("0.3.2"));
+        assert_eq!(plan_check(true, &st), CheckPlan::Start, "re-checking with an offer on hand is fine");
+        st.phase = Phase::Downloading(1, 2);
+        assert_eq!(plan_check(true, &st), CheckPlan::Busy);
+        st.phase = Phase::Installing;
+        assert_eq!(plan_check(true, &st), CheckPlan::Busy);
+    }
+
+    #[test]
+    fn install_needs_an_offer_and_an_updater() {
+        let mut st = UpdateState::default();
+        assert_eq!(plan_install(true, &st), InstallPlan::NoOffer);
+        st.offer = Some(rel("0.3.2"));
+        assert_eq!(plan_install(true, &st), InstallPlan::Go);
+        assert_eq!(plan_install(false, &st), InstallPlan::NotBuiltIn);
+        st.phase = Phase::Downloading(0, 1);
+        assert_eq!(plan_install(true, &st), InstallPlan::Busy, "a second click does not start a second download");
+    }
+
+    #[test]
+    fn the_status_follows_the_updater() {
+        let mut st = UpdateState::default();
+        let s = status_of(&st, "0.3.1");
+        assert_eq!((s.state, s.current.as_str(), s.version.clone(), s.checked_at), (Wire::Idle, "0.3.1", None, None));
+
+        st.checking = true;
+        assert_eq!(status_of(&st, "0.3.1").state, Wire::Checking);
+        st.checking = false;
+
+        st.last = Some((100, Last::UpToDate));
+        let s = status_of(&st, "0.3.1");
+        assert_eq!((s.state, s.checked_at), (Wire::UpToDate, Some(100)));
+
+        st.last = Some((200, Last::Failed(UpdateFailure::Network)));
+        let s = status_of(&st, "0.3.1");
+        assert_eq!((s.state, s.error, s.version), (Wire::Failed, Some(UpdateFailure::Network), None));
+
+        // An offer outranks the last outcome and carries its version.
+        st.offer = Some(rel("0.3.2"));
+        st.last = Some((300, Last::Offered));
+        let s = status_of(&st, "0.3.1");
+        assert_eq!((s.state, s.version.as_deref(), s.error), (Wire::Available, Some("0.3.2"), None));
+        st.last = Some((310, Last::Failed(UpdateFailure::RateLimited)));
+        assert_eq!(status_of(&st, "0.3.1").state, Wire::Available, "a failed re-check does not take the offer away");
+
+        st.phase = Phase::Downloading(250, 1000);
+        let s = status_of(&st, "0.3.1");
+        assert_eq!((s.state, s.progress), (Wire::Downloading, Some(0.25)));
+        st.phase = Phase::Downloading(5, 0);
+        assert_eq!(status_of(&st, "0.3.1").progress, None, "unknown size: no fraction");
+        st.phase = Phase::Downloading(5000, 1000);
+        assert_eq!(status_of(&st, "0.3.1").progress, Some(1.0), "clamped");
+        st.phase = Phase::Installing;
+        let s = status_of(&st, "0.3.1");
+        assert_eq!((s.state, s.version.as_deref(), s.progress), (Wire::Installing, Some("0.3.2"), None));
+
+        // Dismissed offer: back to what the last check said, not "up to date".
+        st.phase = Phase::Offer;
+        st.offer = None;
+        st.last = Some((300, Last::Offered));
+        assert_eq!(status_of(&st, "0.3.1").state, Wire::Idle);
+    }
+
+    #[test]
+    fn a_manual_check_stamps_only_on_success() {
+        assert_eq!(stamp_after_manual_check(true, 42).map(|s| s.last_check), Some(42));
+        assert!(stamp_after_manual_check(false, 42).is_none(), "a failed check leaves the daily stamp alone");
     }
 
     #[test]

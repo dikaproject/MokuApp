@@ -9,7 +9,7 @@ export component UmumPage inherits Page {
     title: "Umum";
     subtitle: "Hal dasar: mulai otomatis, bahasa, dan lokasi data.";
 
-    SectionLabel { text: "MULAI & BAHASA"; }
+    SectionLabel { text: "Mulai & bahasa"; }
     Card {
         ToggleSetting {
             first: true;
@@ -29,7 +29,7 @@ export component UmumPage inherits Page {
         }
     }
 
-    SectionLabel { text: "DATA"; }
+    SectionLabel { text: "Data"; }
     Card {
         Setting {
             first: true;
@@ -56,9 +56,10 @@ export component UmumPage inherits Page {
 
 component IslandPreview inherits Rectangle {
     height: 128px;
-    border-radius: 14px;
+    border-radius: Theme.radius-card;
     clip: true;
-    background: @linear-gradient(110deg, #5238d4 0%, #8b4ef0 38%, #f2527f 72%, #ffb56b 100%);
+    // A flat neutral "desktop" behind the pill (no wallpaper gradient).
+    background: #3A3F48;
     MiniPill {
         k: Cfg.f.island-scale / 100.0;
         notch: Cfg.f.island-style == 1;
@@ -71,8 +72,8 @@ component IslandPreview inherits Rectangle {
         y: root.height - 30px;
         width: root.width;
         text: "Pratinjau langsung";
-        font-size: 11.5px;
-        color: #ffffffb3;
+        font-size: Theme.fs-small;
+        color: #ffffffcc;
         horizontal-alignment: center;
     }
 }
@@ -83,7 +84,7 @@ export component IslandPage inherits Page {
 
     IslandPreview { }
 
-    SectionLabel { text: "BENTUK"; }
+    SectionLabel { text: "Bentuk"; }
     Card {
         Setting {
             first: true;
@@ -106,7 +107,7 @@ export component IslandPage inherits Page {
             }
             Text {
                 text: Cfg.f.island-scale + "%";
-                font-size: 12px;
+                font-size: Theme.fs-small;
                 color: Theme.text2;
                 min-width: 40px;
                 horizontal-alignment: right;
@@ -116,7 +117,7 @@ export component IslandPage inherits Page {
         MonitorSettings { }
     }
 
-    SectionLabel { text: "PERILAKU"; }
+    SectionLabel { text: "Perilaku"; }
     Card {
         Setting {
             first: true;
@@ -166,12 +167,12 @@ component MaterialCard inherits Rectangle {
     width: 172px;
     height: 108px;
     VerticalLayout {
-        spacing: 7px;
+        spacing: 8px;
         Rectangle {
             height: 82px;
-            border-radius: 14px;
+            border-radius: Theme.radius-card;
             clip: true;
-            background: @linear-gradient(120deg, #3a78e8 0%, #6a4cd8 45%, #f2527f 80%, #ff9f6b 100%);
+            background: #3A3F48;
             MiniPill {
                 tint: root.tint;
                 x: (parent.width - self.width) / 2;
@@ -179,15 +180,15 @@ component MaterialCard inherits Rectangle {
             }
             Rectangle {
                 visible: root.selected;
-                border-radius: 14px;
+                border-radius: Theme.radius-card;
                 border-width: 2px;
                 border-color: Theme.accent;
             }
         }
         Text {
             text: root.label;
-            font-size: 12px;
-            font-weight: root.selected ? 700 : 400;
+            font-size: Theme.fs-small;
+            font-weight: root.selected ? Theme.fw-bold : Theme.fw-regular;
             color: root.selected ? Theme.text : Theme.text2;
             horizontal-alignment: center;
         }
@@ -203,20 +204,19 @@ struct Swatch { hex: string, c: color }
 export component TampilanPage inherits Page {
     title: "Tampilan";
     subtitle: "Bahan kaca, warna aksen, dan gerak.";
+    // The accent choices (any #RRGGBB also works through "Kode warna"). No red: red is only for errors.
     property <[Swatch]> swatches: [
         { hex: "#0A84FF", c: #0A84FF },
         { hex: "#BF5AF2", c: #BF5AF2 },
         { hex: "#FF375F", c: #FF375F },
-        { hex: "#FF453A", c: #FF453A },
         { hex: "#FF9F0A", c: #FF9F0A },
-        { hex: "#FFD60A", c: #FFD60A },
         { hex: "#30D158", c: #30D158 },
         { hex: "#63E6BE", c: #63E6BE },
     ];
 
-    SectionLabel { text: "BAHAN KACA"; }
+    SectionLabel { text: "Bahan kaca"; }
     HorizontalLayout {
-        spacing: 14px;
+        spacing: 16px;
         MaterialCard {
             label: "Kaca gelap";
             tint: #0b0b14d6;
@@ -232,7 +232,7 @@ export component TampilanPage inherits Page {
         Rectangle { horizontal-stretch: 2; }
     }
 
-    SectionLabel { text: "WARNA"; }
+    SectionLabel { text: "Warna"; }
     Card {
         Setting {
             first: true;
@@ -243,8 +243,8 @@ export component TampilanPage inherits Page {
                 border-radius: 12px;
                 background: s.c;
                 border-width: Cfg.f.appearance-accent.to-uppercase() == s.hex ? 2px : 0px;
-                border-color: #ffffff;
-                if Cfg.f.appearance-accent.to-uppercase() == s.hex: Glyph { g: "\u{E73E}"; font-size: 11px; color: #ffffff; }
+                border-color: Theme.text;
+                if Cfg.f.appearance-accent.to-uppercase() == s.hex: Glyph { g: "\u{E73E}"; font-size: 11px; color: Theme.on-accent; }
                 TouchArea {
                     mouse-cursor: pointer;
                     clicked => { Cfg.f.appearance-accent = s.hex; Cfg.commit(); }
@@ -270,7 +270,7 @@ export component TampilanPage inherits Page {
         }
     }
 
-    SectionLabel { text: "GERAK"; }
+    SectionLabel { text: "Gerak"; }
     Card {
         Setting {
             first: true;

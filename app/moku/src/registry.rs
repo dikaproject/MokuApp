@@ -109,6 +109,7 @@ pub enum IpcKind {
     Ask,
     Todo,
     Session,
+    Update,
 }
 
 impl IpcKind {
@@ -118,6 +119,7 @@ impl IpcKind {
             Request::Ask { .. } => Some(IpcKind::Ask),
             Request::Todo { .. } => Some(IpcKind::Todo),
             Request::Session { .. } => Some(IpcKind::Session),
+            Request::Update { .. } => Some(IpcKind::Update),
             Request::Ping | Request::ClearData | Request::Debug(_) => None,
         }
     }

@@ -62,9 +62,9 @@ component ListRow inherits Rectangle {
     }
     HorizontalLayout {
         padding-left: 16px;
-        padding-right: 14px;
-        padding-top: 7px;
-        padding-bottom: 7px;
+        padding-right: 16px;
+        padding-top: 8px;
+        padding-bottom: 8px;
         spacing: 12px;
         VerticalLayout {
             alignment: center;
@@ -73,16 +73,18 @@ component ListRow inherits Rectangle {
         if root.tag != "": VerticalLayout {
             alignment: center;
             Rectangle {
-                height: 22px;
-                border-radius: 11px;
-                background: Theme.fill2;
+                height: 24px;
+                border-radius: Theme.radius-inner;
+                background: Theme.control;
+                border-width: 1px;
+                border-color: Theme.line;
                 HorizontalLayout {
-                    padding-left: 9px;
-                    padding-right: 9px;
+                    padding-left: 8px;
+                    padding-right: 8px;
                     Text {
                         text: root.tag;
-                        font-size: 11px;
-                        font-weight: 600;
+                        font-size: Theme.fs-caption;
+                        font-weight: Theme.fw-bold;
                         color: Theme.text2;
                         vertical-alignment: center;
                     }
@@ -95,7 +97,7 @@ component ListRow inherits Rectangle {
             Text {
                 text: root.body;
                 font-family: root.mono ? "Consolas" : Theme.font;
-                font-size: 12.5px;
+                font-size: Theme.fs-body;
                 color: Theme.text2;
                 overflow: elide;
             }
@@ -113,7 +115,7 @@ export component AgentsSection inherits VerticalLayout {
     property <int> agent-index: 0;
     init => { AgentsCfg.reload(); }
 
-    SectionLabel { text: "AGEN CODING LAIN"; }
+    SectionLabel { text: "Agen coding lain"; }
     Card {
         ToggleSetting {
             first: true;
@@ -130,7 +132,7 @@ export component AgentsSection inherits VerticalLayout {
         }
     }
 
-    SectionLabel { text: "SELALU IZINKAN PERINTAH"; }
+    SectionLabel { text: "Selalu izinkan perintah"; }
     Card {
         ToggleSetting {
             first: true;
@@ -199,7 +201,7 @@ export component MirrorSection inherits VerticalLayout {
     spacing: 8px;
     init => { MirrorCfg.reload(); }
 
-    SectionLabel { text: "NOTIFIKASI WINDOWS DI ISLAND"; }
+    SectionLabel { text: "Notifikasi Windows di island"; }
     Card {
         ToggleSetting {
             first: true;

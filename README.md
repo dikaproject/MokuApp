@@ -11,7 +11,7 @@ Indonesian by default; English is available.
 
 | Settings | Earthquake alert from BMKG |
 |---|---|
-| ![Settings](prototype/results/v03/final-settings-ai.png) | ![Tsunami pill](prototype/results/v03/final-pill-tsunami-0400.png) |
+| ![Settings](prototype/results/v04/ui-fitur.png) | ![Tsunami pill](prototype/results/v03/final-pill-tsunami-0400.png) |
 
 The screenshots use sample data only. The design mockups are in [`pratinjau/`](pratinjau/).
 

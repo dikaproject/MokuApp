@@ -10,6 +10,7 @@
 //! see [`color`], [`typo`] and [`widgets`].
 
 pub mod icons;
+pub mod karaoke;
 pub mod layout;
 pub mod qr;
 pub mod text_edit;
@@ -18,6 +19,7 @@ pub mod widgets;
 use std::fmt;
 use std::sync::Arc;
 
+pub use karaoke::{Anchor, KaraokeSpec, WordSpan, karaoke};
 pub use layout::Rect;
 pub use qr::qr;
 pub use text_edit::TextEdit;
@@ -246,6 +248,9 @@ pub enum Kind {
     /// One-line text field ([`text_input`]): text, selection, IME composition, and a caret that
     /// the compositor blinks while the input has keyboard focus.
     Input(InputSpec),
+    /// One line whose words light up in time with the music (see [`karaoke`]): a dim base and a
+    /// bright copy the compositor reveals from left to right.
+    Karaoke(KaraokeSpec),
     /// Flexible empty space (grows along the parent's main axis).
     Spacer,
     Empty,

@@ -11,7 +11,7 @@ export component PintasanPage inherits Page {
     title: "Pintasan";
     subtitle: "Tombol pintas global. Ketik kombinasinya, mis. Alt+M atau Ctrl+Alt+Shift+Q.";
 
-    SectionLabel { text: "TOMBOL PINTAS"; }
+    SectionLabel { text: "Tombol pintas"; }
     Card {
         Setting {
             first: true;
@@ -37,7 +37,7 @@ export component PintasanPage inherits Page {
     }
     Text {
         text: "Tombol pintas baru dipakai setelah island memuat ulang pengaturan (beberapa detik). Nilai yang tidak valid tidak disimpan.";
-        font-size: 11.5px;
+        font-size: Theme.fs-small;
         color: Theme.text3;
         wrap: word-wrap;
     }
@@ -45,16 +45,16 @@ export component PintasanPage inherits Page {
     LauncherSettings { }
     OcrSettings { }
 
-    SectionLabel { text: "GESTUR DI PIL"; }
+    SectionLabel { text: "Gestur di pil"; }
     Card {
         Setting {
             first: true;
             title: "Scroll";
-            Text { text: "Volume"; font-size: 12.5px; color: Theme.text2; vertical-alignment: center; }
+            Text { text: "Volume"; font-size: Theme.fs-body; color: Theme.text2; vertical-alignment: center; }
         }
         Setting {
             title: "Klik dua kali";
-            Text { text: "Play / pause"; font-size: 12.5px; color: Theme.text2; vertical-alignment: center; }
+            Text { text: "Play / pause"; font-size: Theme.fs-body; color: Theme.text2; vertical-alignment: center; }
         }
     }
 }
@@ -65,7 +65,7 @@ export component PluginPage inherits Page {
     title: "Plugin";
     subtitle: "Hubungkan skrip dan agen coding ke island lewat mokuctl.";
 
-    SectionLabel { text: "IZIN AI CODING"; }
+    SectionLabel { text: "Izin AI coding"; }
     Card {
         Setting {
             first: true;
@@ -83,7 +83,7 @@ export component PluginPage inherits Page {
         }
     }
 
-    SectionLabel { text: "UNTUK DEVELOPER"; }
+    SectionLabel { text: "Untuk developer"; }
     Card {
         Setting {
             first: true;
@@ -116,7 +116,7 @@ export component PluginPage inherits Page {
     }
     Text {
         text: "Kode keluar mokuctl ask: 0 disetujui, 1 ditolak, 2 waktu habis, 3 Moku tidak berjalan. Pilih teks di kotak untuk menyalinnya.";
-        font-size: 11.5px;
+        font-size: Theme.fs-small;
         color: Theme.text3;
         wrap: word-wrap;
     }
@@ -129,28 +129,28 @@ export component PrivasiPage inherits Page {
     subtitle: "Moku bekerja tanpa akun. Semua data tetap di komputer ini.";
 
     Rectangle {
-        height: 64px;
-        background: #30d15822;
-        border-radius: 14px;
+        height: 72px;
+        background: Theme.card;
+        border-radius: Theme.radius-card;
         border-width: 1px;
-        border-color: #30d15855;
+        border-color: Theme.line;
         HorizontalLayout {
-            padding: 14px;
+            padding: 16px;
             spacing: 12px;
             VerticalLayout {
                 alignment: center;
-                IconTile { glyph: "\u{E72E}"; tint: #30d158; size: 34px; }
+                Glyph { g: "\u{E72E}"; font-size: 20px; width: 24px; color: Theme.accent; }
             }
             VerticalLayout {
                 alignment: center;
                 spacing: 2px;
-                Text { text: "Tanpa akun, tanpa pelacakan"; font-size: 13.5px; font-weight: 600; color: Theme.text; }
-                Text { text: "Riwayat, catatan, dan pengaturan tidak pernah dikirim ke server mana pun."; font-size: 11.5px; color: Theme.text2; wrap: word-wrap; }
+                Text { text: "Tanpa akun, tanpa pelacakan"; font-size: Theme.fs-body; font-weight: Theme.fw-bold; color: Theme.text; }
+                Text { text: "Riwayat, catatan, dan pengaturan tidak pernah dikirim ke server mana pun."; font-size: Theme.fs-small; color: Theme.text2; wrap: word-wrap; }
             }
         }
     }
 
-    SectionLabel { text: "CLIPBOARD"; }
+    SectionLabel { text: "Clipboard"; }
     Card {
         ToggleSetting {
             first: true;
@@ -189,7 +189,7 @@ export component PrivasiPage inherits Page {
         }
     }
 
-    SectionLabel { text: "LAYAR"; }
+    SectionLabel { text: "Layar"; }
     Card {
         ToggleSetting {
             first: true;
@@ -199,7 +199,7 @@ export component PrivasiPage inherits Page {
         }
     }
 
-    SectionLabel { text: "LOKASI"; }
+    SectionLabel { text: "Lokasi"; }
     Card {
         Setting {
             first: true;
@@ -213,7 +213,7 @@ export component PrivasiPage inherits Page {
         }
     }
 
-    SectionLabel { text: "DATA"; }
+    SectionLabel { text: "Data"; }
     Card {
         Setting {
             first: true;
@@ -231,25 +231,25 @@ export component TentangPage inherits Page {
     subtitle: "Versi, folder data, dan pengenalan.";
 
     Rectangle {
-        height: 226px;
+        height: 232px;
         background: Theme.card;
-        border-radius: 18px;
+        border-radius: Theme.radius-card;
         border-width: 1px;
         border-color: Theme.line;
         VerticalLayout {
             alignment: center;
-            spacing: 6px;
+            spacing: 8px;
             HorizontalLayout {
                 alignment: center;
                 Image { source: @image-url("../assets/logo.png"); width: 76px; height: 76px; }
             }
             HorizontalLayout {
                 alignment: center;
-                Text { text: "Moku"; font-size: 24px; font-weight: 700; color: Theme.text; }
+                Text { text: "Moku"; font-size: Theme.fs-title; font-weight: Theme.fw-bold; color: Theme.text; }
             }
             HorizontalLayout {
                 alignment: center;
-                Text { text: "Versi " + Cfg.version + " (pratinjau) · Windows 10 & 11"; font-size: 12px; color: Theme.text2; }
+                Text { text: "Versi " + Cfg.version + " (pratinjau) · Windows 10 & 11"; font-size: Theme.fs-small; color: Theme.text2; }
             }
             HorizontalLayout {
                 alignment: center;
@@ -259,7 +259,7 @@ export component TentangPage inherits Page {
         }
     }
 
-    SectionLabel { text: "TAUTAN" ; }
+    SectionLabel { text: "Tautan"; }
     Card {
         Setting {
             first: true;
@@ -281,9 +281,9 @@ export component TentangPage inherits Page {
     // Attribution required by NOTICE (GPL-3.0 section 7(b)): a modified version keeps these lines,
     // which name the original project and its repository.
     VerticalLayout {
-        padding-top: 10px;
+        padding-top: 12px;
         spacing: 2px;
-        Text { horizontal-alignment: center; text: "Dibuat dengan Rust dan Slint · Lisensi GPL-3.0 · © 2026 Moku contributors"; font-size: 11.5px; color: Theme.text3; }
-        Text { horizontal-alignment: center; text: "Proyek resmi: github.com/dikaproject/MokuApp"; font-size: 11.5px; color: Theme.text3; }
+        Text { horizontal-alignment: center; text: "Dibuat dengan Rust dan Slint · Lisensi GPL-3.0 · © 2026 Moku contributors"; font-size: Theme.fs-small; color: Theme.text3; }
+        Text { horizontal-alignment: center; text: "Proyek resmi: github.com/dikaproject/MokuApp"; font-size: Theme.fs-small; color: Theme.text3; }
     }
 }

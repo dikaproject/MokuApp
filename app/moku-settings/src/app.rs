@@ -207,11 +207,43 @@ fn handler(ui: &SettingsWindow, st: &Shared, f: impl Fn(&SettingsWindow, &Shared
     }
 }
 
+/// WCAG relative luminance of an sRGB colour (0 = black, 1 = white).
+fn luminance(r: u8, g: u8, b: u8) -> f64 {
+    let lin = |c: u8| {
+        let c = c as f64 / 255.0;
+        if c <= 0.03928 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+    };
+    0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+}
+
+fn contrast(l1: f64, l2: f64) -> f64 {
+    let (hi, lo) = if l1 > l2 { (l1, l2) } else { (l2, l1) };
+    (hi + 0.05) / (lo + 0.05)
+}
+
+/// The text colour that reads best on an accent fill (primary buttons, the ON toggle): white or the
+/// window's ink (`Theme.bg`, #0F1115), whichever has more contrast. The default blue gets the ink.
+pub(crate) fn on_accent(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
+    let l = luminance(r, g, b);
+    if contrast(l, 1.0) > contrast(l, luminance(0x0F, 0x11, 0x15)) { (0xFF, 0xFF, 0xFF) } else { (0x0F, 0x11, 0x15) }
+}
+
+/// The knob of an ON toggle: white, unless white has under 3:1 against the accent track (WCAG for
+/// graphics); then the window's ink, which has more.
+pub(crate) fn knob_on(r: u8, g: u8, b: u8) -> (u8, u8, u8) {
+    if contrast(luminance(r, g, b), 1.0) >= 3.0 { (0xFF, 0xFF, 0xFF) } else { (0x0F, 0x11, 0x15) }
+}
+
 /// Things derived from the form that the UI cannot compute itself: the accent colour and the
 /// keycap chips of the toggle hotkey.
 fn refresh_derived(ui: &SettingsWindow, form: &Form) {
     if let Some(rgb) = moku_core::color::Rgb::parse(&form.appearance_accent) {
-        ui.global::<Theme>().set_accent(slint::Color::from_rgb_u8(rgb.r(), rgb.g(), rgb.b()));
+        let t = ui.global::<Theme>();
+        t.set_accent(slint::Color::from_rgb_u8(rgb.r(), rgb.g(), rgb.b()));
+        let (r, g, b) = on_accent(rgb.r(), rgb.g(), rgb.b());
+        t.set_on_accent(slint::Color::from_rgb_u8(r, g, b));
+        let (r, g, b) = knob_on(rgb.r(), rgb.g(), rgb.b());
+        t.set_knob(slint::Color::from_rgb_u8(r, g, b));
     }
     if moku_core::hotkey::Hotkey::parse(form.general_hotkey_toggle.trim()).is_ok() {
         let parts: Vec<SharedString> = form::hotkey_parts(&form.general_hotkey_toggle).into_iter().map(SharedString::from).collect();
@@ -432,10 +464,44 @@ mod tests {
     }
 
     #[test]
+    fn text_on_the_accent_is_always_readable() {
+        // Every accent of the picker, a dark one and a light one: at least 4.5:1 (WCAG AA, normal text).
+        for hex in ["#0A84FF", "#BF5AF2", "#FF375F", "#FF9F0A", "#30D158", "#63E6BE", "#1A3A8A", "#FFFFFF", "#000000", "#777777"] {
+            let c = moku_core::color::Rgb::parse(hex).unwrap();
+            let (r, g, b) = on_accent(c.r(), c.g(), c.b());
+            let ratio = contrast(luminance(c.r(), c.g(), c.b()), luminance(r, g, b));
+            let floor = if hex == "#777777" { 4.0 } else { 4.5 }; // a mid grey is the worst case: either text gives about 4.7 / 4.5
+            assert!(ratio >= floor, "{hex}: {ratio:.2}");
+        }
+        assert_eq!(on_accent(0x0A, 0x84, 0xFF), (0x0F, 0x11, 0x15), "the default blue takes dark text");
+        assert_eq!(on_accent(0x1A, 0x3A, 0x8A), (0xFF, 0xFF, 0xFF), "a dark accent takes white");
+    }
+
+    #[test]
+    fn the_toggle_knob_is_white_and_always_visible_on_the_accent() {
+        // The default blue and every dark accent: a white knob.
+        for hex in ["#0A84FF", "#BF5AF2", "#FF375F", "#1A3A8A", "#000000"] {
+            let c = moku_core::color::Rgb::parse(hex).unwrap();
+            assert_eq!(knob_on(c.r(), c.g(), c.b()), (0xFF, 0xFF, 0xFF), "{hex}");
+        }
+        // Every accent, preset or custom: whatever the knob is, it has at least 3:1 on the track.
+        for hex in ["#0A84FF", "#BF5AF2", "#FF375F", "#FF9F0A", "#30D158", "#63E6BE", "#FFD60A", "#FFFFFF", "#777777", "#123456", "#C8C800"] {
+            let c = moku_core::color::Rgb::parse(hex).unwrap();
+            let (r, g, b) = knob_on(c.r(), c.g(), c.b());
+            let ratio = contrast(luminance(c.r(), c.g(), c.b()), luminance(r, g, b));
+            assert!(ratio >= 3.0, "{hex}: {ratio:.2}");
+        }
+        // Very light accents fall back to the dark knob.
+        let (r, g, b) = knob_on(0xFF, 0xD6, 0x0A);
+        assert_eq!((r, g, b), (0x0F, 0x11, 0x15));
+    }
+
+    #[test]
     fn glue_accent_change_updates_the_theme_colour() {
         let r = Rig::new("accent", None, false);
         r.edit(|f| f.appearance_accent = "#30D158".into());
         assert_eq!(r.ui.global::<Theme>().get_accent(), slint::Color::from_rgb_u8(0x30, 0xD1, 0x58));
+        assert_eq!(r.ui.global::<Theme>().get_on_accent(), slint::Color::from_rgb_u8(0x0F, 0x11, 0x15));
     }
 
     #[test]
@@ -582,11 +648,11 @@ mod tests {
     // pixels at the default 1000x700, read off the screenshots in prototype/results/v01).
 
     const SIDEBAR_X: f32 = 59.0;
-    const NAV_PRIVASI_Y: f32 = 397.0;
-    const NAV_AI_Y: f32 = 436.0;
-    const NAV_MEMORI_Y: f32 = 475.0;
-    const NAV_TENTANG_Y: f32 = 514.0;
-    const NAV_UMUM_Y: f32 = 85.0;
+    const NAV_PRIVASI_Y: f32 = 412.0;
+    const NAV_AI_Y: f32 = 452.0;
+    const NAV_MEMORI_Y: f32 = 492.0;
+    const NAV_TENTANG_Y: f32 = 532.0;
+    const NAV_UMUM_Y: f32 = 92.0;
 
     #[test]
     fn ui_clicking_the_sidebar_switches_pages() {
@@ -612,11 +678,11 @@ mod tests {
         r.cfg().set_page(1);
         r.open();
 
-        r.click(936.0, 618.0); // toggle "Sembunyikan saat layar penuh"
+        r.click(932.0, 650.0); // toggle "Sembunyikan saat layar penuh"
         assert!(!r.cfg().get_f().island_hide_fullscreen);
-        r.click(926.0, 305.0); // segment "Notch"
+        r.click(921.0, 311.0); // segment "Notch"
         assert_eq!(r.cfg().get_f().island_style, 1);
-        r.click(933.0, 512.0); // segment "Klik" (the delay row below it goes away)
+        r.click(928.0, 532.0); // segment "Klik" (the delay row below it goes away)
         assert_eq!(r.cfg().get_f().island_open_on, 1);
 
         advance(350);
@@ -631,7 +697,7 @@ mod tests {
         let r = Rig::new("slider", None, false);
         r.cfg().set_page(1);
         r.open();
-        let (left, right, y) = (519.0 + 9.0, 519.0 + 190.0 - 9.0, 357.0); // thumb centres at both ends
+        let (left, right, y) = (521.0 + 8.0, 521.0 + 192.0 - 8.0, 368.0); // thumb centres at both ends
 
         r.click(left, y);
         assert_eq!(r.cfg().get_f().island_scale, 75);

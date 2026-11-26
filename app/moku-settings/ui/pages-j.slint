@@ -37,9 +37,9 @@ component UrlRow inherits Rectangle {
     }
     HorizontalLayout {
         padding-left: 16px;
-        padding-right: 14px;
-        padding-top: 7px;
-        padding-bottom: 7px;
+        padding-right: 16px;
+        padding-top: 8px;
+        padding-bottom: 8px;
         spacing: 12px;
         VerticalLayout {
             alignment: center;
@@ -51,7 +51,7 @@ component UrlRow inherits Rectangle {
             Text {
                 text: root.masked;
                 font-family: "Consolas";
-                font-size: 12px;
+                font-size: Theme.fs-small;
                 color: Theme.text2;
                 overflow: elide;
             }
@@ -67,7 +67,7 @@ export component JSettings inherits VerticalLayout {
     spacing: 8px;
     init => { CalendarCfg.reload(); }
 
-    SectionLabel { text: "KALENDER"; }
+    SectionLabel { text: "Kalender"; }
     Card {
         ToggleSetting {
             first: true;
@@ -112,7 +112,7 @@ export component JSettings inherits VerticalLayout {
         }
     }
 
-    SectionLabel { text: "UNDUHAN"; }
+    SectionLabel { text: "Unduhan"; }
     Card {
         ToggleSetting {
             first: true;

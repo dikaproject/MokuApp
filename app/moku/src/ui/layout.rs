@@ -82,6 +82,10 @@ pub enum Live {
     Charge { r: Rect, inner: Rect, radius: f32, fill_w: f32, bolt: Rect, color: Rgba },
     /// The caret of a focused [`text_input`]: a thin bar the compositor blinks.
     Caret { r: Rect, color: Rgba },
+    /// A [`karaoke`] line: the scene draws it (dim base + bright copy) and the compositor sweeps
+    /// the bright copy across. The scene compares it apart from the other live items (its anchor
+    /// changes with every report of the player).
+    Karaoke(Box<super::karaoke::KaraokeLive>),
 }
 
 /// Sliders at most this high (DIP) draw in the compact style (thin track, accent fill, knob).
@@ -224,6 +228,17 @@ fn place_input(i: &InputSpec, r: Rect, m: &dyn Measure, out: &mut Laid, a: f32) 
     }
 }
 
+/// A karaoke line: nothing is rasterised with the block; the scene gets the line, where its words
+/// are and when they are sung, and draws and animates it.
+fn place_karaoke(k: &KaraokeSpec, r: Rect, m: &dyn Measure, out: &mut Laid, a: f32) {
+    use super::karaoke::{KaraokeLive, segs_for};
+    let text = TextSpec { color: k.text.color.fade(a), max_lines: 1, ..k.text.clone() };
+    let full_w = if text.s.is_empty() { 0.0 } else { m.text(&text, INPUT_MAX_W).0 };
+    let text_w = full_w.min(r.w);
+    let segs = segs_for(&k.words, &|b| m.caret_x(&text, b), r.w, text_w);
+    out.live.push(Live::Karaoke(Box::new(KaraokeLive { r, id: k.id.clone(), text, dim: k.dim.fade(a), segs, text_w, anchor: k.anchor, rise: k.rise })));
+}
+
 fn is_container(n: &Node) -> bool {
     matches!(n.kind, Kind::Row(_) | Kind::Col(_) | Kind::Stack(_))
 }
@@ -248,6 +263,7 @@ fn leaf_size(n: &Node, m: &dyn Measure, max_w: f32) -> (f32, f32) {
             let w = if s.is_empty() { 0.0 } else { m.text(&input_text(i, s.clone()), max_w).0 };
             (w + 2.0, input_line_h(i))
         }
+        Kind::Karaoke(k) => m.text(&k.text, max_w.max(0.0)),
         Kind::Spacer | Kind::Empty => (0.0, 0.0),
         Kind::Row(_) | Kind::Col(_) | Kind::Stack(_) => (0.0, 0.0),
     }
@@ -592,6 +608,7 @@ fn place_node(n: &Node, rect: Rect, m: &dyn Measure, out: &mut Laid, alpha: f32)
         }
         Kind::Logo => out.ops.push(Op::Logo { r, alpha: a }),
         Kind::Input(i) => place_input(i, r, m, out, a),
+        Kind::Karaoke(k) => place_karaoke(k, r, m, out, a),
         Kind::Spacer | Kind::Empty | Kind::Row(_) | Kind::Col(_) | Kind::Stack(_) => {}
     }
 }
@@ -865,6 +882,70 @@ pub mod tests {
             laid.live[..],
             [Live::Bars { .. }, Live::Spinner { .. }, Live::Charge { .. }, Live::Caret { .. }]
         ), "{:?}", laid.live);
+    }
+
+    fn karaoke_node(s: &str, words: Vec<WordSpan>) -> Node {
+        let Kind::Text(spec) = text(s).semibold().kind else { unreachable!() };
+        let anchor = Anchor { pos_ms: 0, at: std::time::Instant::now(), playing: true, rate: 1.0 };
+        karaoke(KaraokeSpec { id: "track#3".into(), text: spec, dim: color::TEXT3, words, anchor, rise: 6.0 })
+    }
+
+    #[test]
+    fn a_karaoke_line_measures_like_text_and_hands_its_words_to_the_scene() {
+        let words = vec![WordSpan { start_ms: 100, end_ms: 400, from: 0, to: 2 }, WordSpan { start_ms: 400, end_ms: 900, from: 3, to: 6 }, WordSpan { start_ms: 900, end_ms: 1000, from: 7, to: 8 }];
+        let n = karaoke_node("ab cde f", words).action("demo.seek");
+        // Same size as the plain text (7 DIP per character in the fake).
+        assert_eq!(measure(&n, &Fake, 500.0), measure(&text("ab cde f"), &Fake, 500.0));
+        let (_, laid) = layout(&n, &Fake, 10.0, 20.0, 500.0);
+        // Nothing is rasterised with the block; the scene draws both layers itself.
+        assert!(laid.ops.is_empty());
+        assert_eq!(laid.hits.len(), 1, "tapping the line still seeks");
+        let [Live::Karaoke(k)] = &laid.live[..] else { panic!("one karaoke line: {:?}", laid.live) };
+        assert_eq!((k.r.x, k.r.y, k.r.w), (10.0, 20.0, 56.0));
+        assert_eq!(k.id, "track#3");
+        assert_eq!(k.text_w, 56.0);
+        // Words are placed by their byte ranges: x = 7 per char, the last one reaches the end.
+        let x: Vec<(f32, f32)> = k.segs.iter().map(|s| (s.x0, s.x1)).collect();
+        assert_eq!(x, [(0.0, 14.0), (21.0, 42.0), (49.0, 56.0)]);
+        assert_eq!((k.segs[1].t0, k.segs[1].t1), (400, 900));
+        assert_eq!(k.dim, color::TEXT3);
+        assert_eq!(k.text.color, color::WHITE);
+    }
+
+    #[test]
+    fn a_karaoke_line_is_capped_at_its_width_and_inherits_opacity() {
+        let words = vec![WordSpan { start_ms: 0, end_ms: 500, from: 0, to: 5 }, WordSpan { start_ms: 500, end_ms: 1000, from: 6, to: 11 }];
+        let n = col([karaoke_node("hello world", words).opacity(0.5)]).w(40.0);
+        let (_, laid) = layout(&n, &Fake, 0.0, 0.0, 40.0);
+        let Live::Karaoke(k) = &laid.live[0] else { panic!() };
+        assert_eq!(k.text_w, 40.0, "ellipsised at the box");
+        assert!(k.segs.iter().all(|s| s.x1 <= 40.0));
+        assert_eq!(k.segs.last().unwrap().x1, 40.0);
+        assert!((k.text.color.a - 0.5).abs() < 1e-6 && (k.dim.a - color::TEXT3.a * 0.5).abs() < 1e-6, "opacity applies to both layers");
+        // No words: still a line (the scene shows it bright), nothing to sweep.
+        let (_, laid) = layout(&karaoke_node("la la", vec![]), &Fake, 0.0, 0.0, 200.0);
+        let Live::Karaoke(k) = &laid.live[0] else { panic!() };
+        assert!(k.segs.is_empty());
+    }
+
+    #[test]
+    fn two_trees_of_the_same_line_differ_only_in_what_the_player_reported() {
+        let words = vec![WordSpan { start_ms: 0, end_ms: 500, from: 0, to: 2 }];
+        let live = |n: &Node| -> Box<crate::ui::karaoke::KaraokeLive> {
+            let (_, l) = layout(n, &Fake, 0.0, 0.0, 200.0);
+            let Live::Karaoke(k) = l.live.into_iter().next().unwrap() else { panic!() };
+            k
+        };
+        let a = live(&karaoke_node("hi", words.clone()));
+        let mut spec_b = karaoke_node("hi", words.clone());
+        if let Kind::Karaoke(s) = &mut spec_b.kind {
+            s.anchor.pos_ms = 9_000;
+        }
+        let b = live(&spec_b);
+        assert_ne!(a, b, "a new anchor makes the trees differ ...");
+        assert!(a.same_line(&b), "... but it is the same line, so a running sweep is kept");
+        let c = live(&karaoke_node("ho", words));
+        assert!(!a.same_line(&c));
     }
 
     #[test]

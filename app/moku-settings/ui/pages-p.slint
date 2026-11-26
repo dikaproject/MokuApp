@@ -33,7 +33,7 @@ export component PSettings inherits VerticalLayout {
     spacing: 8px;
     init => { TodayCfg.reload(); }
 
-    SectionLabel { text: "LIBUR NASIONAL"; }
+    SectionLabel { text: "Libur nasional"; }
     Card {
         ToggleSetting {
             first: true;
@@ -44,7 +44,7 @@ export component PSettings inherits VerticalLayout {
         }
     }
 
-    SectionLabel { text: "GEMPA DAN PERINGATAN CUACA (BMKG)"; }
+    SectionLabel { text: "Gempa dan peringatan cuaca (BMKG)"; }
     Card {
         ToggleSetting {
             first: true;
@@ -90,7 +90,7 @@ export component PSettings inherits VerticalLayout {
         }
     }
 
-    SectionLabel { text: "NILAI TUKAR DAN KUALITAS UDARA"; }
+    SectionLabel { text: "Nilai tukar dan kualitas udara"; }
     Card {
         ToggleSetting {
             first: true;
@@ -111,7 +111,7 @@ export component PSettings inherits VerticalLayout {
             }
             Text {
                 text: "\u{2192}";
-                font-size: 14px;
+                font-size: Theme.fs-heading;
                 color: Theme.text3;
                 vertical-alignment: center;
             }

@@ -15,8 +15,9 @@ not in that file.
 
 ## Which screenshots are published
 
-**The public repository has only `results/v03/final-*.png`** (the current look, sample data only). Everything
-below describes the developer's local copy, where the older shots are kept.
+**The public repository has only `results/v03/final-*.png` and `results/v04/ui-fitur.png`, `ui-island.png`,
+`ui-tentang-update-available.png`** (the current look, sample data only). Everything below describes the
+developer's local copy, where the older shots are kept.
 
 - `results/v02/` holds screenshots taken with **sample data only** (invented apps, devices and files;
   the launcher, mixer, Kontrol and installer ones are made with the debug sample hooks described in

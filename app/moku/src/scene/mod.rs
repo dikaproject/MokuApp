@@ -11,6 +11,7 @@
 
 pub mod charge;
 pub mod gfx;
+mod karaoke;
 pub mod reduce;
 pub mod spring;
 
@@ -126,6 +127,10 @@ struct Layer {
     /// How many `Live` items have visuals in `under_root` / `live_root` (bars, spinner, charging
     /// battery, text caret; they are removed together by `clear_live`, so no handles are kept).
     live_n: usize,
+    /// Word-highlight lines (children of their block's sprite), and the motion setting they were
+    /// built for (a sweep exists only while animations are on).
+    karaoke: Vec<karaoke::KaraokeRun>,
+    karaoke_anim: Animations,
 }
 
 /// The sprite of one keyed node (`Node::key`), kept across trees by its key.
@@ -788,6 +793,8 @@ impl Island {
                     self.make_caret(over, *r, *color)?;
                     continue;
                 }
+                // Kept apart (see `karaoke`): the sprites of the blocks carry them.
+                Live::Karaoke(_) => continue,
                 Live::Charge { r, inner, radius, fill_w, bolt, color } => {
                     self.make_charge(under, over, *r, *inner, *radius, *fill_w, *bolt, *color)?;
                     continue;
@@ -909,14 +916,17 @@ impl Island {
                 keyed.push(self.keyed_sprite(&keyed_root, k, i)?);
             }
         }
-        let live: Vec<Live> = content.blocks.iter().flat_map(|b| b.laid.live.clone()).collect();
+        let live = karaoke::others(&content.blocks);
         let live_n = self.make_live(&under_root, &live_root, &live)?;
-        Ok(Layer { key: content.key.clone(), container, inner, under_root, blocks_root, live_root, keyed_root, sprites, keyed, content, live_n })
+        // The layer is not on screen yet: its lines come in with it, not by themselves.
+        let mut karaoke = vec![];
+        self.sync_karaoke(&sprites, &mut karaoke, &content, false)?;
+        Ok(Layer { key: content.key.clone(), container, inner, under_root, blocks_root, live_root, keyed_root, sprites, keyed, content, live_n, karaoke, karaoke_anim: self.opts.anim })
     }
 
     /// Same key: redraw only the blocks that changed; diff the keyed sprites by key.
     fn update_layer(&self, layer: &mut Layer, content: Content, bubble: bool) -> Result<KeyedOutcome> {
-        if layer.content == content {
+        if layer.content == content && layer.karaoke_anim == self.opts.anim {
             return Ok(KeyedOutcome::default());
         }
         if content.size != layer.content.size || content.panel != layer.content.panel {
@@ -932,6 +942,8 @@ impl Island {
         } else {
             layer.blocks_root.Children()?.RemoveAll()?;
             layer.sprites.clear();
+            // The lines were children of the old sprites: gone with them.
+            layer.karaoke.clear();
             Self::clear_live(layer)?;
             for b in &content.blocks {
                 let v = self.sprite(b)?;
@@ -939,9 +951,13 @@ impl Island {
                 layer.sprites.push(v);
             }
         }
-        let outcome = self.diff_keyed(layer, &content)?;
-        let old_live: Vec<Live> = layer.content.blocks.iter().flat_map(|b| b.laid.live.clone()).collect();
-        let live: Vec<Live> = content.blocks.iter().flat_map(|b| b.laid.live.clone()).collect();
+        let mut outcome = self.diff_keyed(layer, &content)?;
+        let lines = self.sync_karaoke(&layer.sprites, &mut layer.karaoke, &content, true)?;
+        outcome.busy_ms = outcome.busy_ms.max(lines.busy_ms);
+        outcome.exiting.extend(lines.exiting);
+        layer.karaoke_anim = self.opts.anim;
+        let old_live = karaoke::others(&layer.content.blocks);
+        let live = karaoke::others(&content.blocks);
         if old_live != live || layer.live_n == 0 && !live.is_empty() {
             Self::clear_live(layer)?;
             layer.live_n = self.make_live(&layer.under_root, &layer.live_root, &live)?;

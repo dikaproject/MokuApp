@@ -50,9 +50,9 @@ component AppRow inherits Rectangle {
     }
     HorizontalLayout {
         padding-left: 16px;
-        padding-right: 14px;
-        padding-top: 5px;
-        padding-bottom: 5px;
+        padding-right: 16px;
+        padding-top: 4px;
+        padding-bottom: 4px;
         spacing: 12px;
         VerticalLayout {
             alignment: center;
@@ -64,7 +64,7 @@ component AppRow inherits Rectangle {
             Text {
                 text: root.name;
                 font-family: "Consolas";
-                font-size: 12.5px;
+                font-size: Theme.fs-body;
                 color: Theme.text;
                 overflow: elide;
             }
@@ -146,7 +146,7 @@ export component MonitorSettings inherits VerticalLayout {
 export component PlacementSettings inherits VerticalLayout {
     spacing: 8px;
 
-    SectionLabel { text: "POSISI"; }
+    SectionLabel { text: "Posisi"; }
     Card {
         Setting {
             first: true;
@@ -169,7 +169,7 @@ export component PlacementSettings inherits VerticalLayout {
         }
     }
 
-    SectionLabel { text: "SOPAN"; }
+    SectionLabel { text: "Sopan"; }
     Card {
         Setting {
             first: true;
@@ -194,16 +194,16 @@ export component PlacementSettings inherits VerticalLayout {
         Rectangle {
             VerticalLayout {
                 padding-left: 16px;
-                padding-right: 14px;
-                padding-bottom: 11px;
-                spacing: 3px;
+                padding-right: 16px;
+                padding-bottom: 12px;
+                spacing: 4px;
                 for hint[i] in [
                     "Mati: island selalu terlihat.",
                     "Saat idle: hilang kalau hanya menampilkan jam; muncul sendiri saat ada musik, timer, notifikasi, dan sebagainya. Kursor di tepi atas layar juga memunculkannya.",
                     "Selalu sampai tepi atas: hilang terus, juga saat musik main, sampai kursor menyentuh tepi atas layar di dekatnya atau ada yang baru masuk.",
                 ]: Text {
                     text: hint;
-                    font-size: 11.5px;
+                    font-size: Theme.fs-small;
                     color: i == PlacementCfg.hide-mode ? Theme.text : Theme.text3;
                     wrap: word-wrap;
                 }
@@ -211,7 +211,7 @@ export component PlacementSettings inherits VerticalLayout {
         }
     }
 
-    SectionLabel { text: "PER APLIKASI"; }
+    SectionLabel { text: "Per aplikasi"; }
     Card {
         AppList {
             list: 1;

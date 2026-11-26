@@ -34,7 +34,12 @@ Moku sends over the network, the [privacy policy](../PRIVACY.md).
   release's `moku-setup.exe.sig` is a valid ECDSA P-256 signature of that digest by the key built
   into Moku; a release without a signature is never offered. Turn it off in Settings → Tentang →
   "Periksa pembaruan otomatis" (the switch is greyed out in a build that has no repository or
-  signing key set: "Belum aktif di build ini").
+  signing key set: "Belum aktif di build ini"). You can also check by hand: Settings → Tentang →
+  "Pembaruan" has "Periksa sekarang" (the same single request, made now, also while the automatic
+  check is off) and, when a newer release is on offer, "Perbarui sekarang" (the same install as the
+  pill's "Perbarui", with its progress). The settings app only asks the running island (named pipe,
+  `Request::Update`); the island does the work, and `mokuctl update [status|check|install]` does
+  the same from a terminal. With no island running the page says so and the buttons are off.
   The installer swaps the program folder in as a whole; it waits up to 30 s for Moku to let go of
   it (the window says "Menunggu Moku selesai ditutup…") and, if the folder stays locked (a process has
   it as its current directory, a scanner is looking at it), replaces the files one by one instead
@@ -75,7 +80,7 @@ The panel's tabs, in order:
 
 | Tab | What it does |
 |---|---|
-| Musik | Current media session (any player that uses Windows media controls): art, title, timeline, play/pause/next/prev, synced lyrics from LRCLIB, live bars in the pill. Volume pill on volume changes. |
+| Musik | Current media session (any player that uses Windows media controls): art, title, timeline, play/pause/next/prev, synced lyrics from LRCLIB (the sung line lights up **word by word**, like karaoke, drawn by the compositor so it costs no CPU; the timing is estimated when the lyrics have no word data, and used as is when they do; Settings → Fitur → "Sorot lirik per kata"; it is a plain bright line when animations are reduced or off), live bars in the pill. Volume pill on volume changes. |
 | Hari ini | Date and week strip, today's agenda from your iCal (`.ics`) calendars (Google "secret address", Outlook "publish", any `.ics`; repeating events, time zones and Meet / Zoom / Teams "Gabung" buttons), a local to-do list you add to, edit and delete in the panel (with a due time that raises a reminder: see "To-do with a time"), Indonesian public holidays and cuti bersama (with a "Besok libur" pill the evening before), weather from Open-Meteo for the configured city, rain heads-up, small chips for an exchange rate and the air quality, and the latest BMKG earthquake and weather warnings (credit "Sumber: BMKG"). |
 | Sehat | Drink-water and eye-break reminders, prayer times (Kemenag RI or Malaysia JAKIM angles), the Hijri date (also in the Hari ini header; Kemenag's published month starts from 1 Muharram 1447 to 1 Muharram 1449 H, embedded as data with their sources in `features/hijri.rs`, the tabular calendar outside that range, and a -2..+2 day correction on top for regional differences), and the Ramadan pack: imsak and buka puasa countdown ring in the island (prominent in the last 30 minutes), "Selamat berbuka" at Maghrib, opt-in puasa sunnah reminders (Senin-Kamis, Ayyamul Bidh, Arafah, Tasu'a and Asyura) and an optional adzan sound at prayer time (a generated chime or your own file; your media is paused first and only what Moku paused is resumed; no recording ships with Moku). Off by default. |
 | Kontrol | Six tiles, three and three: Wi-Fi, Bluetooth (names a connected headset and its battery, tinted when on or connected), Jangan ganggu, Mode gelap, Tetap menyala, Mode rapat; volume and brightness sliders, output device, and the per-app volume mixer (chip "Mixer per aplikasi": a slider and a mute button for every app that is playing sound). |
@@ -451,13 +456,17 @@ sheet and shows the island for as long as it is open.
   is on and only when you ask. HTTPS, or HTTP for localhost; redirects are not followed; the API key
   is read from Windows Credential Manager and sent only in that request's `Authorization` header.
   No telemetry.
-- Network: Open-Meteo (weather, geocoding) and LRCLIB (lyrics), only while those
-  features are on, and GitHub for updates: at most once a day
-  `GET https://api.github.com/repos/<repo>/releases/latest`, plus the installer download from
+- Network: Open-Meteo (weather, geocoding) and LRCLIB (lyrics: the same artist, title, album and
+  length, at most four small requests per song, the later ones only when an earlier one found
+  nothing, with tags like "(Official Video)" or "- Topic" removed from the title and artist), only
+  while those features are on, and GitHub for updates: at most once a day
+  `GET https://api.github.com/repos/<repo>/releases/latest` (a manual "Periksa sekarang" is that
+  same one request, made when you press it), plus the installer download from
   `github.com` (redirected to `objects.githubusercontent.com` /
   `release-assets.githubusercontent.com`) when you press "Perbarui": the installer, its `.sha256`
   and its `.sig` signature. The updater talks to no other host, only over HTTPS, and only while
-  `update.check` is on (Settings → Tentang) and the build has a real repository
+  `update.check` is on (Settings → Tentang; the manual check works with it off, because you asked)
+  and the build has a real repository
   (`moku_core::release::REPO`) and the signing key's public half
   (`moku_core::release::UPDATE_PUBLIC_KEY`) set. No telemetry, no accounts. The launcher's helper
   process makes no network calls.

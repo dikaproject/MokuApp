@@ -1,25 +1,53 @@
+import { Cfg } from "cfg.slint";
 import { Theme } from "theme.slint";
-import { Card, ToggleSetting, Setting, SectionLabel } from "widgets.slint";
+import { Card, ToggleSetting, Setting, SectionLabel, Btn, Progress } from "widgets.slint";
 
 // Track I: update settings, placed on the Tentang page. Rust side: src/update_page.rs.
 export global UpdateCfg {
     // update.check in config.toml.
     in-out property <bool> check: true;
     // False while moku_core::release::REPO is still the placeholder or UPDATE_PUBLIC_KEY is not set
-    // (the updater is off in this build): the switch is greyed out and cannot be turned on.
+    // (the updater is off in this build): the switch is greyed out and cannot be turned on, and
+    // there is no status line and no button.
     in property <bool> available: false;
     in property <string> repo;
+    // What the running island says (src/update_page.rs `describe`): one status line, whether it is
+    // about a problem, which buttons work, and the download fraction (-1 = no progress bar).
+    in property <string> status;
+    in property <bool> problem: false;
+    in property <bool> can-check: false;
+    in property <bool> can-install: false;
+    in property <float> progress: -1;
     callback set-check(bool);
+    // The page was opened: read the island's status once.
+    callback shown();
+    // "Periksa sekarang" / "Perbarui sekarang": asked of the island over its pipe.
+    callback check-now();
+    callback install-now();
 }
 
 export component UpdateSection inherits VerticalLayout {
     spacing: 8px;
-    SectionLabel { text: "PEMBARUAN"; }
+    init => { UpdateCfg.shown(); }
+    SectionLabel { text: "Pembaruan"; }
     Card {
-        // Greyed out while the updater is not in this build.
-        opacity: UpdateCfg.available ? 1.0 : 0.5;
-        ToggleSetting {
+        if UpdateCfg.available: Setting {
             first: true;
+            title: "Moku " + Cfg.version;
+            subtitle: UpdateCfg.status;
+            subtitle-color: UpdateCfg.problem ? Theme.danger : Theme.text3;
+            Btn { text: "Periksa sekarang"; enabled: UpdateCfg.can-check; clicked => { UpdateCfg.check-now(); } }
+            if UpdateCfg.can-install: Btn { text: "Perbarui sekarang"; kind: "primary"; clicked => { UpdateCfg.install-now(); } }
+        }
+        if UpdateCfg.available && UpdateCfg.progress >= 0: Rectangle {
+            height: 24px;
+            Rectangle { y: 0; height: 1px; background: Theme.line; }
+            Progress { x: 16px; width: parent.width - 32px; y: 10px; value: UpdateCfg.progress; }
+        }
+        // Greyed out while the updater is not in this build.
+        ToggleSetting {
+            first: !UpdateCfg.available;
+            opacity: UpdateCfg.available ? 1.0 : 0.5;
             title: "Periksa pembaruan otomatis";
             subtitle: UpdateCfg.available
                 ? "Sekali sehari, Moku menanyakan versi terbaru ke GitHub (" + UpdateCfg.repo + "). Tidak ada data lain yang dikirim."

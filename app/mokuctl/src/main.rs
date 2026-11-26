@@ -9,7 +9,7 @@ use std::io::Read;
 use std::process::ExitCode;
 use std::time::Duration;
 
-use moku_core::ipc::{self, DebugOp, IpcError, Request, Response, SessionState};
+use moku_core::ipc::{self, DebugOp, IpcError, Request, Response, SessionState, UpdateAction, UpdateStatus};
 
 mod agent_hook;
 mod claude_hook;
@@ -47,6 +47,11 @@ USAGE
               argument) and shows the session on the island. Codex permission requests get a
               card; its answer is printed in the format Codex's hook expects. Gemini CLI: status
               only. Exit code 0 always, gives up on a status after 100 ms (docs/agents.md)
+  mokuctl update [status | check | install]
+              the updater of the island: status (default); check = look for a newer release now
+              (one request to GitHub, also when the automatic check is off; answers `checking`,
+              ask `status` a moment later); install = download, verify and install the release on
+              offer. Prints e.g. `available 0.3.2 (running 0.3.1)`
   mokuctl pipe-name
               print the pipe name this mokuctl talks to (for scripts and tests)
   mokuctl debug open-tab <id> | close | state | click <action> | screenshot-ready
@@ -262,6 +267,11 @@ fn build(args: &[String], stdin: &mut dyn FnMut() -> Vec<u8>) -> Result<(Request
             Some("add") if o.pos.len() > 1 => (Request::Todo { add: o.pos[1..].join(" ") }, quick),
             _ => return Err("usage: mokuctl todo add <text>".into()),
         },
+        "update" => {
+            let action = o.pos.first().map(|a| UpdateAction::parse(a).ok_or("usage: mokuctl update status|check|install")).transpose()?;
+            // `check` answers at once ("checking"); the result shows in a later `status`.
+            (Request::Update { action: action.unwrap_or(UpdateAction::Status) }, Some(Duration::from_secs(15)))
+        }
         "debug" => {
             let p = &o.pos;
             let arg = |i: usize, what: &str| p.get(i).cloned().ok_or_else(|| format!("missing {what}"));
@@ -337,7 +347,26 @@ fn render(req: &Request, resp: &Response, json: bool) -> (Option<String>, Option
         Response::Answer { choice } => (Some(choice.clone()), None, code),
         Response::Error { message } => (None, Some(format!("mokuctl: {message}")), code),
         Response::State { .. } => (None, None, code),
+        Response::Update { status } => (Some(update_line(status)), None, code),
     }
+}
+
+/// `mokuctl update ...` in words: `available 0.3.2 (running 0.3.1)`, `failed: cannot reach GitHub`,
+/// `downloading 0.3.2 41% (running 0.3.1)`.
+fn update_line(s: &UpdateStatus) -> String {
+    let state = serde_json::to_value(s.state).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
+    let mut out = state;
+    if let Some(e) = s.error {
+        out.push_str(&format!(": {}", e.text(true)));
+    }
+    if let Some(v) = &s.version {
+        out.push_str(&format!(" {v}"));
+    }
+    if let Some(p) = s.progress {
+        out.push_str(&format!(" {}%", (p * 100.0).round() as u32));
+    }
+    out.push_str(&format!(" (running {})", s.current));
+    out
 }
 
 /// Output for a failure to talk to the island at all.
@@ -461,6 +490,10 @@ mod tests {
         assert_eq!(b(&["debug", "open-tab", "today"]).unwrap().0, Request::Debug(DebugOp::OpenTab { id: "today".into() }));
         assert_eq!(b(&["debug", "click", "tab.media", "--json"]).unwrap().0, Request::Debug(DebugOp::Click { action: "tab.media".into() }));
         assert!(matches!(b(&["debug", "activity", "t", "50", "Timer", "--secs", "2"]).unwrap().0, Request::Debug(DebugOp::Activity { priority: 50, .. })));
+        assert_eq!(b(&["update"]).unwrap().0, Request::Update { action: UpdateAction::Status });
+        assert_eq!(b(&["update", "check"]).unwrap().0, Request::Update { action: UpdateAction::Check });
+        assert_eq!(b(&["update", "install"]).unwrap().0, Request::Update { action: UpdateAction::Install });
+        assert!(b(&["update", "now"]).is_err());
         assert!(b(&["notify"]).is_err());
         assert!(b(&["notify", "--title", "  "]).is_err());
         assert!(b(&["notify", "--title", "x", "--progress", "abc"]).is_err());
@@ -524,6 +557,21 @@ mod tests {
         assert!(b(&["session", "--id", "x", "--state", "sleeping"]).is_err());
         assert!(b(&["session", "--id", "x", "--state", "done", "--ts", "-5"]).is_err());
         assert!(build(&s(&["session", "--stdin"]), &mut || b"[1]".to_vec()).is_err());
+    }
+
+    #[test]
+    fn update_output_in_words() {
+        use moku_core::ipc::{UpdateFailure, UpdateState};
+        let st = |state, version: Option<&str>, error, progress| UpdateStatus { state, current: "0.3.1".into(), version: version.map(Into::into), error, progress, checked_at: None };
+        let req = Request::Update { action: UpdateAction::Status };
+        let line = |s: UpdateStatus| render(&req, &Response::Update { status: s }, false).0.unwrap();
+        assert_eq!(line(st(UpdateState::Available, Some("0.3.2"), None, None)), "available 0.3.2 (running 0.3.1)");
+        assert_eq!(line(st(UpdateState::Downloading, Some("0.3.2"), None, Some(0.414))), "downloading 0.3.2 41% (running 0.3.1)");
+        assert_eq!(line(st(UpdateState::UpToDate, None, None, None)), "up_to_date (running 0.3.1)");
+        assert_eq!(line(st(UpdateState::Failed, None, Some(UpdateFailure::Network), None)), "failed: cannot reach GitHub (running 0.3.1)");
+        // --json prints the raw line.
+        let json = render(&req, &Response::Update { status: st(UpdateState::Checking, None, None, None) }, true).0.unwrap();
+        assert_eq!(json, "{\"type\":\"update\",\"status\":{\"state\":\"checking\",\"current\":\"0.3.1\"}}");
     }
 
     #[test]

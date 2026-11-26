@@ -4,6 +4,57 @@ All notable changes to Moku. The format follows [Keep a Changelog](https://keepa
 and versions follow [Semantic Versioning](https://semver.org/). The release workflow publishes
 the section of the tagged version as the GitHub release notes.
 
+## [0.3.3] - 2026-11-26
+
+A calmer settings app (one accent colour), updating from Settings -> Tentang, and word-by-word lyrics.
+
+### Added
+
+- **Update from Settings → Tentang as well as from the island pill.** The "Pembaruan" card now has
+  "Periksa sekarang" (looks for a newer release at once: the same single request to GitHub as the daily
+  check, also while "Periksa pembaruan otomatis" is off, and only in a build that has the updater), a
+  status line ("Sudah terbaru · dicek 2 menit lalu", "Versi x.y.z tersedia", "Gagal memeriksa: ...") and,
+  when a release is on offer, "Perbarui sekarang" with the download progress. After a manual check the
+  island shows a short pill too ("Moku sudah terbaru (x.y.z)", the usual offer pill, or "Gagal memeriksa
+  pembaruan" with a few words of why). The settings app asks the running island over the existing
+  per-user pipe (new request `update`: `status`, `check`, `install`) and only polls while the page is
+  open and a check or download is under way; with no island running the page says so and the buttons are
+  off. `mokuctl update [status|check|install]` does the same from a terminal.
+- **Musik: the sung lyric line lights up word by word, like karaoke.** The line being sung is drawn dim, and a
+  bright copy is revealed from left to right with a soft edge that follows the music, in the Musik panel and in
+  the lyric pill ("Musik: tampilkan baris lirik di pil"). It is drawn by the compositor (one key-frame animation
+  that starts when the line becomes the sung line, nothing redrawn per frame), so playing costs no CPU, and it
+  stays in step with pause, resume, seek, a new track, a changed playback rate, closing and reopening the panel
+  and any other redraw. A new line fades in and rises a little while the old one fades up and out. The timing is
+  **estimated** when the lyrics only have times per line (nearly all of them): the line's singing time is spread
+  over its words by length and punctuation, never longer than the line's slot, so a long instrumental break after
+  a short line is not stretched across; real word times (enhanced LRC `<mm:ss.xx>`) are used as they are when the
+  lyrics have them. Chinese, Japanese and Thai lines are timed per character; right-to-left lines and instrumental
+  breaks stay plain. With "Animasi" on "Kurangi" or "Mati" (or Windows animation effects off) the whole line is
+  simply bright, as before. Switch: Settings → Fitur → "Sorot lirik per kata" (`media.lyrics_word_highlight`,
+  on by default).
+- **Lyrics are found for more songs.** Titles from browsers and YouTube are cleaned before the lookup: tags such as
+  "(Official Music Video)", "[HD]", "(Lyrics)", "| Lirik", "(Remastered 2011)", "- Topic" / "VEVO" artist names,
+  emoji and "feat. X" are removed, and "Artist - Title" in the title field is split when the artist is empty. When
+  the exact LRCLIB match fails, Moku now tries the cleaned title with the cleaned artist, then the title alone, then a
+  free-text search (at most four requests per song in all, to the same host with the same artist, title, album and
+  length); hits must be within 3 s of the song's length, and the right song by name. The player's playback rate is
+  followed when it reports one.
+
+### Changed
+
+- **The settings app looks calmer: one accent colour, everything else grey.** The window is a flat,
+  near-black cool grey (no purple-to-pink gradient, no glassy translucent cards, no coloured icon tiles).
+  Your accent colour (Settings → Tampilan → Warna aksen, still `appearance.accent`) is the only colour left:
+  it fills toggles that are on, primary buttons, the selected segment, chip and sidebar item, progress
+  bars, links and the focus outline of a text field. Icons are grey, section titles are sentence case
+  instead of loud capitals, "segera" is an outlined grey tag, and red appears only for destructive buttons
+  and invalid input. Cards have one corner radius and a 1 px border instead of shadows; text uses three
+  greys that keep at least 4.5:1 contrast on their surface, and the text on an accent fill switches between
+  dark and white by contrast. The accent picker no longer offers red (red means "error"); any `#RRGGBB`
+  still works. Nothing else changed: same pages, same controls, same layout. The island itself and the
+  Moku logo look as before.
+
 ## [0.3.2] - 2026-11-26
 
 Two fixes: the island no longer vanishes when the desktop is shown, and updating from inside Moku no

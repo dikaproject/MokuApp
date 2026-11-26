@@ -35,6 +35,16 @@ pub struct Timeline {
     pub pos_ms: u64,
     pub dur_ms: u64,
     pub at: Option<Instant>,
+    /// Playback rate the player reports (0 = not reported = 1x).
+    pub rate: f32,
+}
+
+impl Timeline {
+    /// The playback speed to extrapolate with: the reported rate, 1 when there is none; kept to
+    /// a sane range (players report 0 while paused, and nonsense is not worth following).
+    pub fn speed(&self) -> f32 {
+        if self.rate.is_finite() && self.rate > 0.0 { self.rate.clamp(0.25, 4.0) } else { 1.0 }
+    }
 }
 
 /// One change from the media session service.
@@ -131,7 +141,7 @@ impl Media {
         let mut p = t.pos_ms;
         if self.playing {
             if let Some(at) = t.at {
-                p += now.saturating_duration_since(at).as_millis() as u64;
+                p += (now.saturating_duration_since(at).as_millis() as f64 * t.speed() as f64) as u64;
             }
         }
         if t.dur_ms > 0 { p.min(t.dur_ms) } else { p }
@@ -247,7 +257,7 @@ mod tests {
         m.apply(Update::Track(track("Midnight Drive")));
         m.apply(Update::Art { key: track("Midnight Drive").key(), art: Some(solid(0xFF3D77)) });
         m.apply(Update::Playback { playing: true, controls: Controls { prev: true, next: true, play_pause: true, seek: true } });
-        m.apply(Update::Timeline(Timeline { pos_ms: 84_000, dur_ms: 227_000, at: Some(Instant::now()) }));
+        m.apply(Update::Timeline(Timeline { pos_ms: 84_000, dur_ms: 227_000, at: Some(Instant::now()), rate: 0.0 }));
         m
     }
 
@@ -322,8 +332,16 @@ mod tests {
     fn position_extrapolates_only_while_playing() {
         let mut m = playing_state();
         let at = Instant::now();
-        m.apply(Update::Timeline(Timeline { pos_ms: 10_000, dur_ms: 20_000, at: Some(at) }));
+        m.apply(Update::Timeline(Timeline { pos_ms: 10_000, dur_ms: 20_000, at: Some(at), rate: 0.0 }));
         assert_eq!(m.position_ms(at + Duration::from_secs(3)), 13_000);
+        // A player at 1.5x moves the position 1.5x as fast; a nonsense rate counts as 1x.
+        m.apply(Update::Timeline(Timeline { pos_ms: 10_000, dur_ms: 60_000, at: Some(at), rate: 1.5 }));
+        assert_eq!(m.position_ms(at + Duration::from_secs(4)), 16_000);
+        m.apply(Update::Timeline(Timeline { pos_ms: 10_000, dur_ms: 60_000, at: Some(at), rate: f32::NAN }));
+        assert_eq!(m.position_ms(at + Duration::from_secs(4)), 14_000);
+        m.apply(Update::Timeline(Timeline { pos_ms: 10_000, dur_ms: 60_000, at: Some(at), rate: 0.0 }));
+        assert_eq!(m.position_ms(at + Duration::from_secs(4)), 14_000);
+        m.apply(Update::Timeline(Timeline { pos_ms: 10_000, dur_ms: 20_000, at: Some(at), rate: 0.0 }));
         assert_eq!(m.position_ms(at + Duration::from_secs(60)), 20_000, "clamped to the duration");
         m.playing = false;
         assert_eq!(m.position_ms(at + Duration::from_secs(3)), 10_000);

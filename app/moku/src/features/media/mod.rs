@@ -222,9 +222,9 @@ fn music_pill(app: &App) -> Node {
     let m = &app.state::<MediaState>().m;
     let Some(t) = &m.track else { return pill([icon(icons::MUSIC)]) };
     let content = match lyrics::pill_lines(app) {
-        // "Lirik berjalan": the sung line, the next one dimmed.
+        // "Lirik berjalan": the sung line (its words light up in time), the next one dimmed.
         Some((cur, next)) => {
-            let mut r = row([art_node(app, 24.0, 7.0), text(cur).semibold().max_w(320.0)]);
+            let mut r = row([art_node(app, 24.0, 7.0), sung_line(app, &cur, typo::BODY, 4.0, None).max_w(320.0)]);
             if !next.is_empty() {
                 r = r.child(text(next).tertiary().max_w(170.0));
             }
@@ -241,11 +241,36 @@ fn music_pill(app: &App) -> Node {
     content.h(36.0).pad4(8.0, 0.0, 12.0, 0.0).gap(8.0).action("media.pill")
 }
 
+/// The playback clock the word highlight follows: the player's last report of its position (a
+/// position being scrubbed counts as paused there). It only changes when the player reports
+/// something, so redraws in between leave a running sweep alone.
+fn lyric_anchor(st: &MediaState, scrub: Option<u64>) -> Anchor {
+    let m = &st.m;
+    match (scrub, m.timeline.at) {
+        (Some(p), _) => Anchor { pos_ms: p, at: Instant::now(), playing: false, rate: 1.0 },
+        (None, Some(at)) => Anchor { pos_ms: m.timeline.pos_ms, at, playing: m.playing, rate: m.timeline.speed() },
+        (None, None) => Anchor { pos_ms: m.timeline.pos_ms, at: Instant::now(), playing: false, rate: 1.0 },
+    }
+}
+
+/// The sung line: its words light up in time with the music (`media.lyrics_word_highlight`; the
+/// scene sweeps a bright copy over the dim one on the compositor, and shows it simply bright
+/// when animations are reduced or off). A line with nothing to light up is plain bright text.
+fn sung_line(app: &App, c: &lyrics::Current, size: f32, rise: f32, scrub: Option<u64>) -> Node {
+    let plain = || text(c.text.clone()).font_size(size).semibold();
+    if !app.config().media.lyrics_word_highlight || c.words.is_empty() {
+        return plain();
+    }
+    let Kind::Text(spec) = plain().kind else { unreachable!("text() is a Text") };
+    karaoke(KaraokeSpec { id: lyrics::line_id(app, c.idx), text: spec, dim: color::TEXT3, words: c.words.clone(), anchor: lyric_anchor(app.state::<MediaState>(), scrub), rise })
+}
+
 /// Three lyric lines (previous / current / next) or a status line, always three rows high so
 /// the panel doesn't jump.
 fn lyric_block(app: &App, pos: u64) -> Node {
     let st = app.state::<MediaState>();
     let ls = app.state::<lyrics::LyricsState>();
+    let scrub = st.scrub.map(|_| pos);
     let line = |s: Option<(u64, String)>, big: bool| -> Node {
         let Some((t, s)) = s else { return text(" ").font_size(if big { 15.0 } else { typo::BODY }) };
         let s = if s.is_empty() { "♪".to_string() } else { s };
@@ -260,7 +285,11 @@ fn lyric_block(app: &App, pos: u64) -> Node {
         match &ls.status {
             lyrics::Status::Ready(lyrics::lrclib::Found::Synced(l)) => {
                 let (p, c, n) = lyrics::around(l, pos);
-                col([line(p, false), line(c, true), line(n, false)]).gap(4.0).fill_w()
+                let cur = match lyrics::current(l, pos) {
+                    Some(cur) if !cur.text.is_empty() => sung_line(app, &cur, 15.0, 7.0, scrub).fill_w().action(format!("media.seek_ms:{}", cur.t)),
+                    _ => line(c, true),
+                };
+                col([line(p, false), cur, line(n, false)]).gap(4.0).fill_w()
             }
             lyrics::Status::Ready(lyrics::lrclib::Found::Instrumental) => status(tr("♪ Instrumental", "♪ Instrumental")),
             lyrics::Status::Loading => status(tr("Mencari lirik…", "Looking for lyrics…")),
@@ -352,8 +381,39 @@ fn sample(app: &mut App) {
     apply(app, Update::Track(track));
     apply(app, Update::Art { key: key.clone(), art: Some(sample_art()) });
     apply(app, Update::Playback { playing: true, controls: model::Controls { prev: true, next: true, play_pause: true, seek: true } });
-    apply(app, Update::Timeline(model::Timeline { pos_ms: 84_500, dur_ms: 227_000, at: Some(Instant::now()) }));
+    apply(app, Update::Timeline(model::Timeline { pos_ms: 84_500, dur_ms: 227_000, at: Some(Instant::now()), rate: 0.0 }));
     lyrics::inject_sample(app, key, SAMPLE_LRC);
+}
+
+/// Lyrics for `--state lyrics|lyrics-panel`: lines with known times, so the word highlight can be
+/// looked at and measured. Plain lines (the highlight is estimated), one with real word times
+/// (enhanced LRC), a long gap after a short line, a sung-word-less break, CJK, a long line.
+const DEMO_LRC: &str = "[00:00.00]
+[00:03.00]lampu kota memudar di kaca jendela
+[00:07.50]dan kota pun perlahan terlelap
+[00:12.00]di bawah lampu jalan kita bicara
+[00:16.50]tentang esok yang belum bernama
+[00:21.00]<00:21.00>Hel<00:21.40>lo <00:21.90>from <00:22.40>the <00:22.90>other <00:23.60>side<00:25.20>
+[00:26.00]oh
+[00:38.00]
+[00:40.00]夜に駆ける 沈むように溶けてゆく
+[00:45.00]sebuah baris yang sangat panjang sekali untuk melihat bagaimana sorotan bergerak melintasi banyak kata
+[00:52.00]lampu kota memudar di kaca jendela
+[00:56.50]dan kota pun perlahan terlelap
+[01:01.00]di bawah lampu jalan kita bicara
+[01:05.50]tentang esok yang belum bernama";
+
+/// `--state lyrics` / `lyrics-panel`: a fake player at `start_ms` (playing) with [`DEMO_LRC`]. The
+/// fixed modes run no media service, so nothing replaces it. Not used in normal runs.
+pub fn demo_lyrics(app: &mut App, start_ms: u64) {
+    let track = model::Track { title: "Midnight Drive".into(), artist: "Kaia".into(), album: "Neon Atlas".into() };
+    let key = track.key();
+    apply(app, Update::Session { app: "Moku".into() });
+    apply(app, Update::Track(track));
+    apply(app, Update::Art { key: key.clone(), art: Some(sample_art()) });
+    apply(app, Update::Playback { playing: true, controls: model::Controls { prev: true, next: true, play_pause: true, seek: true } });
+    apply(app, Update::Timeline(model::Timeline { pos_ms: start_ms, dur_ms: 227_000, at: Some(Instant::now()), rate: 0.0 }));
+    lyrics::inject_sample(app, key, DEMO_LRC);
 }
 
 #[cfg(test)]

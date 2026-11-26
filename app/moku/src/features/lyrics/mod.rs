@@ -7,6 +7,8 @@
 
 pub mod lrc;
 pub mod lrclib;
+pub mod title;
+pub mod words;
 
 use std::collections::VecDeque;
 use std::sync::{Arc, LazyLock};
@@ -210,16 +212,41 @@ pub fn around(l: &lrc::Lyrics, pos_ms: u64) -> Around {
     }
 }
 
-/// For the pill (lyric mode): the current line and the next one, if there is a sung line now.
-pub fn pill_lines(app: &App) -> Option<(String, String)> {
+/// The line being sung now, with the times of its words.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Current {
+    pub idx: usize,
+    pub t: u64,
+    pub text: String,
+    /// Empty when there is nothing to light up (an instrumental "♪" line, right-to-left text).
+    pub words: Vec<crate::ui::WordSpan>,
+}
+
+/// The line sung at `pos_ms`.
+pub fn current(l: &lrc::Lyrics, pos_ms: u64) -> Option<Current> {
+    let idx = l.line_at(pos_ms)?;
+    let line = &l.lines[idx];
+    let next = l.lines.get(idx + 1).map(|n| n.t);
+    let words = if line.text.is_empty() || words::is_rtl(&line.text) { Vec::new() } else { words::spans(line, next) };
+    Some(Current { idx, t: line.t, text: line.text.clone(), words })
+}
+
+/// For the pill (lyric mode): the sung line and the next one, if there is a sung line now.
+pub fn pill_lines(app: &App) -> Option<(Current, String)> {
     if !app.config().media.lyrics_in_pill {
         return None;
     }
     let l = app.state::<LyricsState>().synced()?;
     let pos = app.state::<MediaState>().m.position_ms(Instant::now());
-    let (_, cur, next) = around(l, pos);
-    let cur = cur.filter(|(_, t)| !t.is_empty())?.1;
-    Some((cur, next.map(|n| n.1).unwrap_or_default()))
+    let cur = current(l, pos).filter(|c| !c.text.is_empty())?;
+    let next = l.lines.get(cur.idx + 1).map(|n| n.text.clone()).unwrap_or_default();
+    Some((cur, next))
+}
+
+/// Identity of a sung line for the highlight (track + line): a sweep keeps running while it is
+/// the same.
+pub fn line_id(app: &App, idx: usize) -> String {
+    format!("{}#{idx}", app.state::<LyricsState>().key.as_deref().unwrap_or(""))
 }
 
 /// Sample lyrics for the `media.sample` demo path (feeds the same state).
@@ -263,6 +290,38 @@ mod tests {
         st.remember("new".into(), Found::Instrumental);
         assert!(st.cached("k5").is_some());
         assert!(st.cached("k6").is_none());
+    }
+
+    #[test]
+    fn the_sung_line_knows_its_words() {
+        let l = lrc::parse("[00:01.00]lampu kota memudar
+[00:05.00]
+[00:07.00]oh yeah
+[00:12.00]نص عربي");
+        assert!(current(&l, 500).is_none(), "nothing is sung before the first line");
+        let c = current(&l, 2000).unwrap();
+        assert_eq!((c.idx, c.t, c.text.as_str()), (0, 1000, "lampu kota memudar"));
+        let w: Vec<&str> = c.words.iter().map(|w| &c.text[w.from..w.to]).collect();
+        assert_eq!(w, ["lampu", "kota", "memudar"]);
+        // The estimate fills the 4 s slot to the next line, minus the tail.
+        assert!(c.words.last().unwrap().end_ms <= 5000 - words::TAIL_MS);
+        assert_eq!(c.words[0].start_ms, 1000);
+        // A break has nothing to light up; a right-to-left line is not swept either.
+        assert!(current(&l, 5500).unwrap().words.is_empty());
+        assert!(current(&l, 13_000).unwrap().words.is_empty());
+        // The last line gets the default slot.
+        let c = current(&l, 8000).unwrap();
+        assert_eq!(c.idx, 2);
+        assert!(c.words.last().unwrap().end_ms <= 7000 + 5000);
+    }
+
+    #[test]
+    fn real_word_times_win_over_the_estimate() {
+        let l = lrc::parse("[00:10.00]<00:10.00>one <00:11.00>two <00:11.50>three<00:12.00>
+[00:20.00]x");
+        let c = current(&l, 10_500).unwrap();
+        let t: Vec<(u64, u64)> = c.words.iter().map(|w| (w.start_ms, w.end_ms)).collect();
+        assert_eq!(t, [(10_000, 11_000), (11_000, 11_500), (11_500, 12_000)]);
     }
 
     #[test]
