@@ -21,11 +21,13 @@
 //! A log goes to `%TEMP%\moku-setup.log`.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod diag;
 mod install;
 mod payload;
 mod procs;
 mod reg;
 mod shortcut;
+mod swap;
 
 use std::io::Write;
 use std::time::Duration;
@@ -42,7 +44,8 @@ slint::slint! {
     export { SetupWindow, Setup, Theme }
 }
 
-const STOP_TIMEOUT: Duration = Duration::from_secs(5);
+/// How long running Moku processes get to close their windows before they are terminated.
+const STOP_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Default, Debug)]
 struct Args {
@@ -151,6 +154,7 @@ fn install_options(args: &Args) -> InstallOptions {
         },
         setup_exe: std::env::current_exe().ok(),
         stop_timeout: STOP_TIMEOUT,
+        pace: swap::Pace::real(),
     }
 }
 
@@ -310,7 +314,7 @@ fn wire(ui: &SetupWindow, args: &Args, layout: Layout) {
         } else {
             Autostart::Off
         };
-        let opts = InstallOptions { autostart, setup_exe: base.setup_exe.clone(), stop_timeout: base.stop_timeout };
+        let opts = InstallOptions { autostart, setup_exe: base.setup_exe.clone(), stop_timeout: base.stop_timeout, pace: base.pace };
         let layout = layout.clone();
         let w = w.clone();
         std::thread::spawn(move || {

@@ -4,7 +4,9 @@
 //! 1. every file is written (decompressed) into a staging folder next to the program folder,
 //! 2. the Moku processes running *from the program folder* are stopped,
 //! 3. the old folder is renamed aside, the staging folder renamed into place (rolled back if that
-//!    fails), the old folder deleted,
+//!    fails), the old folder deleted. When the folder cannot be renamed even after waiting (a
+//!    process has it as its current directory), the files are replaced one by one instead, all or
+//!    nothing (see [`crate::swap`]),
 //! 4. shortcut, uninstall entry and the autostart value are written.
 //!
 //! A failure before step 3 leaves the previous installation untouched.
@@ -16,6 +18,7 @@ use moku_core::install::{ISLAND_EXE, Layout, PUBLISHER, SETUP_EXE, path_is_withi
 
 use crate::payload::PayloadFile;
 use crate::reg::{self, Value};
+use crate::swap::{self, Pace};
 use crate::{procs, shortcut};
 
 /// How the autostart value is handled.
@@ -33,6 +36,8 @@ pub struct InstallOptions {
     pub setup_exe: Option<PathBuf>,
     /// How long running Moku processes get to quit before they are terminated.
     pub stop_timeout: Duration,
+    /// How long and how often the final swap is retried (tests pass one that does not sleep).
+    pub pace: Pace,
 }
 
 pub struct UninstallOptions {
@@ -72,8 +77,11 @@ fn leftover_pid(name: &str) -> Option<u32> {
 /// Leftovers of an interrupted run (`Moku.new-<pid>`, `Moku.old-<pid>`) next to the program
 /// folder. A folder whose process is still running belongs to ANOTHER setup that is installing
 /// right now (two setups started at once): it is left alone. So is anything not named exactly
-/// like that.
-fn remove_leftovers(parent: &Path) {
+/// like that. Also the `<name>.old-<n>` files inside the program folder that an earlier
+/// file-by-file swap could not delete because the program was still running (the folder is ours:
+/// `is_ours_or_free` has been checked).
+fn remove_leftovers(parent: &Path, install_dir: &Path) {
+    swap::sweep_old(install_dir);
     let Ok(rd) = std::fs::read_dir(parent) else { return };
     for e in rd.flatten() {
         let name = e.file_name().to_string_lossy().to_string();
@@ -106,20 +114,6 @@ fn not_ours_message(dir: &Path) -> String {
     format!("Folder {} sudah ada, tetapi bukan instalasi Moku (tidak ada moku.exe di dalamnya). Pemasang tidak menimpanya. Pindahkan atau hapus folder itu, lalu coba lagi.", dir.display())
 }
 
-/// `std::fs::rename`, retried for a moment (a just-stopped process can hold a handle briefly;
-/// antivirus scanners open new exes).
-fn rename_retry(from: &Path, to: &Path) -> std::io::Result<()> {
-    let mut last = None;
-    for i in 0..20 {
-        match std::fs::rename(from, to) {
-            Ok(()) => return Ok(()),
-            Err(e) => last = Some(e),
-        }
-        std::thread::sleep(Duration::from_millis(50 * (i + 1).min(6)));
-    }
-    Err(last.unwrap_or_else(|| std::io::Error::other("rename failed")))
-}
-
 fn dir_size(dir: &Path) -> u64 {
     let Ok(rd) = std::fs::read_dir(dir) else { return 0 };
     rd.flatten()
@@ -141,7 +135,7 @@ pub fn install(layout: &Layout, files: &[PayloadFile], opts: &InstallOptions, pr
     }
     let (staging, old, parent) = staging_dirs(layout)?;
     std::fs::create_dir_all(&parent).map_err(|e| format!("create {}: {e}", parent.display()))?;
-    remove_leftovers(&parent);
+    remove_leftovers(&parent, &layout.install_dir);
 
     // 1. Stage.
     progress(0.02, "Menyiapkan berkas…");
@@ -180,24 +174,11 @@ pub fn install(layout: &Layout, files: &[PayloadFile], opts: &InstallOptions, pr
         return Err(e);
     }
 
-    // 3. Swap.
+    // 3. Swap: the folder as a whole after waiting for Moku to let go of it, else file by file.
     progress(0.8, "Memasang…");
-    let had_old = layout.install_dir.exists();
-    if had_old {
-        if let Err(e) = rename_retry(&layout.install_dir, &old) {
-            let _ = std::fs::remove_dir_all(&staging);
-            return Err(format!("Folder {} sedang dipakai ({e}). Tutup Moku lalu coba lagi.", layout.install_dir.display()));
-        }
-    }
-    if let Err(e) = rename_retry(&staging, &layout.install_dir) {
-        if had_old {
-            let _ = rename_retry(&old, &layout.install_dir);
-        }
+    if let Err(e) = swap::swap_in(&layout.install_dir, &staging, &old, &opts.pace, progress) {
         let _ = std::fs::remove_dir_all(&staging);
-        return Err(format!("cannot move the new files into place: {e}"));
-    }
-    if had_old && std::fs::remove_dir_all(&old).is_err() {
-        crate::log(&format!("left {} behind (removed on the next run)", old.display()));
+        return Err(e);
     }
 
     // 4. Shortcut, uninstall entry, autostart.
@@ -333,17 +314,23 @@ pub fn uninstall(layout: &Layout, opts: &UninstallOptions, progress: Progress) -
 /// on the same volume, so it goes to `%TEMP%` and is deleted from there after this process
 /// exits. When `%TEMP%` is on another volume, everything else is deleted now and the exe plus the
 /// then empty folder right after exit.
+///
+/// A file of the folder that is still in use (`<name>.old-<n>` of an exe that kept running after an
+/// update, or anything a scanner has open right now) does not make the uninstall fail either: see
+/// [`remove_deferring`].
 fn remove_program_folder(dir: &Path) -> Result<(), String> {
     if !dir.exists() {
         return Ok(());
     }
+    swap::sweep_old(dir);
     let err = |e: std::io::Error| format!("delete {}: {e}", dir.display());
+    let defer = &mut |f: &Path, d: Option<&Path>| delete_after_exit(f, d);
     let Some(me) = std::env::current_exe().ok().filter(|m| path_is_within(m, dir)) else {
-        return std::fs::remove_dir_all(dir).map_err(err);
+        return remove_deferring(dir, defer).map(|_| ()).map_err(err);
     };
     let tmp = std::env::temp_dir().join(format!("moku-setup-uninstall-{}.exe", std::process::id()));
     if std::fs::rename(&me, &tmp).is_ok() {
-        let r = std::fs::remove_dir_all(dir).map_err(err);
+        let r = remove_deferring(dir, defer).map(|_| ()).map_err(err);
         delete_after_exit(&tmp, None);
         return r;
     }
@@ -353,10 +340,47 @@ fn remove_program_folder(dir: &Path) -> Result<(), String> {
         if same(&p) {
             continue;
         }
-        (if p.is_dir() { std::fs::remove_dir_all(&p) } else { std::fs::remove_file(&p) }).map_err(|e| format!("delete {}: {e}", p.display()))?;
+        remove_deferring(&p, defer).map_err(|e| format!("delete {}: {e}", p.display()))?;
     }
     delete_after_exit(&me, Some(dir));
     Ok(())
+}
+
+/// Delete `path` and everything below it. A file that cannot be deleted because something has it
+/// open (a mapped exe) is moved to `%TEMP%` when that is on the same volume, and deleted from there
+/// after this process exits (`defer(file, folder to remove once empty)`); on another volume it is
+/// deleted in place after exit. Returns whether anything was left for after the exit.
+fn remove_deferring(path: &Path, defer: &mut dyn FnMut(&Path, Option<&Path>)) -> std::io::Result<bool> {
+    let md = match std::fs::symlink_metadata(path) {
+        Ok(m) => m,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => return Err(e),
+    };
+    if md.is_dir() {
+        let mut deferred = false;
+        for e in std::fs::read_dir(path)? {
+            deferred |= remove_deferring(&e?.path(), defer)?;
+        }
+        return match std::fs::remove_dir(path) {
+            Ok(()) => Ok(deferred),
+            // Not empty because of what was left for later: the deferred removal takes it.
+            Err(_) if deferred => Ok(true),
+            Err(e) => Err(e),
+        };
+    }
+    let Err(e) = std::fs::remove_file(path).or_else(|e| if md.file_type().is_symlink() { std::fs::remove_dir(path) } else { Err(e) }) else {
+        return Ok(false);
+    };
+    static N: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = std::env::temp_dir().join(format!("moku-setup-leftover-{}-{n}", std::process::id()));
+    crate::log(&format!("{} is in use ({e}); deleting it after exit", path.display()));
+    if std::fs::rename(path, &tmp).is_ok() {
+        defer(&tmp, None);
+    } else {
+        defer(path, path.parent());
+    }
+    Ok(true)
 }
 
 /// Files left for after exit: (file, folder to remove once empty).
@@ -423,6 +447,8 @@ mod tests {
     use super::*;
     use std::cell::RefCell;
 
+    use crate::swap::tests::{Kill, ping, spawn_ping_in};
+
     const TEST_REG: &str = r"Software\MokuSetupTest";
 
     /// A temp root and a test registry root, both removed on drop. Never the real locations.
@@ -482,7 +508,7 @@ mod tests {
     }
 
     fn opts(autostart: Autostart, setup: Option<PathBuf>) -> InstallOptions {
-        InstallOptions { autostart, setup_exe: setup, stop_timeout: Duration::from_secs(2) }
+        InstallOptions { autostart, setup_exe: setup, stop_timeout: Duration::from_secs(2), pace: Pace::instant() }
     }
 
     fn quiet(_: f32, _: &str) {}
@@ -809,6 +835,123 @@ mod tests {
             let e = moku_core::paths::check_data_dir_safe(&bad).unwrap_err();
             assert!(e.contains("refusing") || e.contains("not an absolute"), "{e}");
         }
+    }
+
+    /// A "Moku" that keeps running with its current directory inside the folder: the folder
+    /// cannot be renamed, so the update replaces the files one by one. New content, nothing left
+    /// over, the user told that we wait.
+    #[test]
+    fn an_update_goes_through_when_a_process_has_the_folder_as_its_current_directory() {
+        let sb = Sandbox::new("cwd");
+        let l = &sb.layout;
+        install(l, &payload(), &opts(Autostart::Off, None), &quiet).unwrap();
+        std::fs::write(l.install_dir.join("old-only.dll"), b"x").unwrap();
+        std::fs::create_dir_all(l.install_dir.join("docs")).unwrap();
+        let _child = spawn_ping_in(&l.install_dir.join("docs"));
+        assert!(std::fs::rename(&l.install_dir, l.install_dir.with_extension("moved")).is_err(), "the folder is locked");
+
+        let mut p = payload();
+        p[1] = PayloadFile { path: "moku-settings.exe", size: 2, compressed: false, data: b"v2" };
+        let steps = RefCell::new(vec![]);
+        install(l, &p, &opts(Autostart::Keep, None), &|f, s| steps.borrow_mut().push((f, s.to_string()))).unwrap();
+        let steps = steps.into_inner();
+        assert!(steps.iter().any(|s| s.1.contains("Menunggu Moku selesai ditutup")), "{steps:?}");
+        assert!(steps.windows(2).all(|w| w[0].0 <= w[1].0), "progress only goes up");
+        assert_eq!(std::fs::read(l.exe("moku-settings.exe")).unwrap(), b"v2");
+        assert_eq!(std::fs::read(l.exe("mokuctl.exe")).unwrap(), b"ctl");
+        assert!(!l.install_dir.join("old-only.dll").exists());
+        assert!(l.shortcut.is_file() && reg::key_exists(&l.uninstall_key), "the steps after the swap still ran");
+        let leftovers: Vec<String> = std::fs::read_dir(l.install_dir.parent().unwrap()).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
+        assert_eq!(leftovers, vec!["Moku".to_string()], "no staging or parked folder");
+        assert_eq!(swap::sweep_old(&l.install_dir), 0);
+        assert!(!std::fs::read_dir(&l.install_dir).unwrap().flatten().any(|e| swap::is_old_name(&e.file_name().to_string_lossy())), "no .old-* left");
+    }
+
+    /// When a file cannot be replaced the update fails, says which file and why, and the
+    /// installation is exactly as it was.
+    #[test]
+    fn a_failed_update_names_the_path_and_changes_nothing() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let sb = Sandbox::new("failed");
+        let l = &sb.layout;
+        install(l, &payload(), &opts(Autostart::Off, None), &quiet).unwrap();
+        let _child = spawn_ping_in(&l.install_dir);
+        let held = std::fs::OpenOptions::new().read(true).share_mode(0).open(l.exe("mokuctl.exe")).unwrap();
+        let mut p = payload();
+        p[1] = PayloadFile { path: "moku-settings.exe", size: 2, compressed: false, data: b"v2" };
+        let e = install(l, &p, &opts(Autostart::Keep, None), &quiet).unwrap_err();
+        assert!(e.contains("sedang dipakai") && e.contains("Tutup Moku"), "{e}");
+        assert!(e.contains(&l.exe("mokuctl.exe").display().to_string()), "names the exact path: {e}");
+        assert!(e.contains("os error 32"), "and the OS error: {e}");
+        drop(held);
+        assert_eq!(std::fs::read(l.exe("moku-settings.exe")).unwrap(), b"settings", "the old installation is untouched");
+        let names: Vec<String> = std::fs::read_dir(&l.install_dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
+        assert!(!names.iter().any(|n| swap::is_old_name(n)), "{names:?}");
+        let siblings = std::fs::read_dir(l.install_dir.parent().unwrap()).unwrap().count();
+        assert_eq!(siblings, 1, "no staging folder left");
+    }
+
+    /// `.old-<n>` files of an earlier update (a program was still running) are swept by the next
+    /// run; the install never starts or keeps them.
+    #[test]
+    fn the_next_install_sweeps_old_files_left_by_a_swap() {
+        let sb = Sandbox::new("sweep");
+        let l = &sb.layout;
+        install(l, &payload(), &opts(Autostart::Off, None), &quiet).unwrap();
+        std::fs::write(l.install_dir.join("moku.exe.old-1"), b"old").unwrap();
+        std::fs::write(l.install_dir.join("docs").join("claude-code-hook.md.old-2"), b"old").unwrap();
+        install(l, &payload(), &opts(Autostart::Keep, None), &quiet).unwrap();
+        let names: Vec<String> = std::fs::read_dir(&l.install_dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().to_string()).collect();
+        assert!(!names.iter().any(|n| swap::is_old_name(n)), "{names:?}");
+        assert!(!l.install_dir.join("docs").join("claude-code-hook.md.old-2").exists());
+    }
+
+    #[test]
+    fn uninstall_removes_leftover_old_files_too() {
+        let sb = Sandbox::new("uninstall-old");
+        let l = &sb.layout;
+        install(l, &payload(), &opts(Autostart::Off, None), &quiet).unwrap();
+        std::fs::write(l.install_dir.join("moku.exe.old-1"), b"old").unwrap();
+        uninstall(l, &UninstallOptions { delete_data: false, stop_timeout: Duration::from_secs(2) }, &quiet).unwrap();
+        assert!(!l.install_dir.exists());
+    }
+
+    /// A file that stays open (a mapped exe) does not stop the folder from being removed: it goes
+    /// to %TEMP% and is deleted once the program is gone.
+    #[test]
+    fn a_file_in_use_is_deferred_instead_of_failing_the_removal() {
+        let sb = Sandbox::new("deferred");
+        let dir = sb.root.join("tree");
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        std::fs::write(dir.join("a.txt"), b"a").unwrap();
+        std::fs::write(dir.join("sub").join("b.txt"), b"b").unwrap();
+        std::fs::copy(ping(), dir.join("moku.exe.old-1")).unwrap();
+        let mut child = Kill(std::process::Command::new(dir.join("moku.exe.old-1")).args(["-n", "30", "127.0.0.1"]).stdout(std::process::Stdio::null()).spawn().unwrap());
+        assert!(std::fs::remove_dir_all(&dir).is_err(), "plain deletion is blocked by the running exe");
+
+        let queued = RefCell::new(vec![]);
+        let deferred = remove_deferring(&dir, &mut |f, d| queued.borrow_mut().push((f.to_path_buf(), d.map(Path::to_path_buf)))).unwrap();
+        assert!(deferred);
+        assert!(!dir.exists(), "everything else, and the folder, is gone (the exe was moved out of it)");
+        let queued = queued.into_inner();
+        assert_eq!(queued.len(), 1);
+        let (file, folder) = &queued[0];
+        assert!(file.is_file(), "the running exe waits in %TEMP%: {}", file.display());
+        assert_eq!(*folder, None);
+
+        // After the program has stopped, the cleanup command deletes it (poll: the image is
+        // released a moment after the process object signals).
+        child.0.kill().unwrap();
+        child.0.wait().unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while file.exists() {
+            spawn_cleanup(file, None, 1).unwrap().wait().unwrap();
+            assert!(std::time::Instant::now() < deadline, "{} is still there", file.display());
+        }
+        // Nothing to defer: reported as such, and a missing path is fine.
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(!remove_deferring(&dir, &mut |_, _| panic!("nothing is in use")).unwrap());
+        assert!(!remove_deferring(&dir, &mut |_, _| panic!("gone already")).unwrap());
     }
 
     #[test]

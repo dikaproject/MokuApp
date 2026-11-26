@@ -35,6 +35,11 @@ Moku sends over the network, the [privacy policy](../PRIVACY.md).
   into Moku; a release without a signature is never offered. Turn it off in Settings → Tentang →
   "Periksa pembaruan otomatis" (the switch is greyed out in a build that has no repository or
   signing key set: "Belum aktif di build ini").
+  The installer swaps the program folder in as a whole; it waits up to 30 s for Moku to let go of
+  it (the window says "Menunggu Moku selesai ditutup…") and, if the folder stays locked (a process has
+  it as its current directory, a scanner is looking at it), replaces the files one by one instead
+  (each old file is renamed to `<name>.old-<n>` first, all or nothing, and swept at the next run).
+  When a swap fails, `%TEMP%\moku-setup.log` names the path and lists what still runs from the folder.
 
 ## Requirements (building from source)
 

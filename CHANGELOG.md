@@ -4,6 +4,23 @@ All notable changes to Moku. The format follows [Keep a Changelog](https://keepa
 and versions follow [Semantic Versioning](https://semver.org/). The release workflow publishes
 the section of the tagged version as the GitHub release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- **update: the installer waits up to 30 s for Moku to let go of its folder and, if the folder itself stays
+  locked, replaces the files one by one; failures name the exact path and list what still runs from the
+  folder in the installer log.** A real update once stopped at the last step ("Folder ... sedang dipakai",
+  Moku left closed on the old version) because something held the folder for a few seconds (a process still
+  shutting down, a scanner, a process whose current directory is inside it). Now the swap retries with a
+  growing back-off for up to 30 s and says so ("Menunggu Moku selesai ditutup..."); when the folder rename
+  still fails, every file is renamed to `<name>.old-<n>` and the new one moved in (a running exe can be
+  renamed, not overwritten), all or nothing, with the `.old-<n>` files deleted afterwards or at the next
+  setup run / uninstall. The stop step now looks at the folder once more after a short wait (the island that
+  launched the update quits itself, and may have helpers), and gives windows 10 s to close. When a swap
+  fails, `%TEMP%\moku-setup.log` has the step, the path, the OS error, the processes still running from
+  the folder and the processes the Restart Manager says hold its files.
+
 ## [0.3.1] - 2026-11-26
 
 A new island mode so Moku stays out of the way when nothing is going on, plus the code signing and

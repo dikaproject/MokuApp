@@ -5,6 +5,9 @@
 //! Gentle first: `WM_CLOSE` to the island's own window (class `MokuIsland`; its window procedure
 //! then quits cleanly and flushes pending saves) and to the visible top-level windows of the
 //! other exes (the settings window). Whatever is still running after the timeout is terminated.
+//! Then the folder is looked at once more after a short wait, and whatever started or was still
+//! shutting down in the meantime (the island that launched an `/update` quits itself right after
+//! launching it, and may have started helpers of its own) gets the same treatment.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -72,7 +75,9 @@ pub fn find_within(dir: &Path) -> Vec<Found> {
         if pid != me && pid != 0 {
             if let Ok(h) = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE | PROCESS_TERMINATE, false, pid) } {
                 let h = Handle(h);
-                if let Some(path) = image_path(h.0) {
+                // An exited process stays listed while somebody still holds a handle to it.
+                let exited = unsafe { WaitForSingleObject(h.0, 0) } == WAIT_OBJECT_0;
+                if let Some(path) = image_path(h.0).filter(|_| !exited) {
                     if path_is_within(&path, dir) {
                         out.push(Found { pid, path, handle: h });
                     }
@@ -108,19 +113,41 @@ unsafe extern "system" fn close_windows(hwnd: HWND, lp: LPARAM) -> BOOL {
     BOOL(1)
 }
 
-/// Stop every process running from `dir`. Returns how many were running.
+/// How long to wait before looking at the folder again after a round of stopping.
+const SETTLE: Duration = Duration::from_millis(300);
+/// Rounds of stop-wait-look-again before it is left to the swap (a program that restarts itself).
+const MAX_ROUNDS: u32 = 4;
+
+/// Stop every process running from `dir`. Returns how many were running (in all rounds).
 pub fn stop_within(dir: &Path, timeout: Duration) -> Result<usize, String> {
-    let found = find_within(dir);
+    let mut found = find_within(dir);
     if found.is_empty() {
         return Ok(0);
     }
+    let mut total = 0;
+    for round in 1..=MAX_ROUNDS {
+        total += stop_found(&found, timeout)?;
+        std::thread::sleep(SETTLE);
+        found = find_within(dir);
+        if found.is_empty() {
+            return Ok(total);
+        }
+        let list: Vec<String> = found.iter().map(|f| format!("pid {} {}", f.pid, f.path.display())).collect();
+        crate::log(&format!("round {round}: still or again running from the folder: {}", list.join(", ")));
+    }
+    crate::log("something keeps running from the folder; leaving it to the swap");
+    Ok(total)
+}
+
+/// Close, wait for and if need be terminate these processes. Returns how many there were.
+fn stop_found(found: &[Found], timeout: Duration) -> Result<usize, String> {
     let ctx = CloseCtx { pids: found.iter().map(|f| f.pid).collect() };
     unsafe {
         let _ = EnumWindows(Some(close_windows), LPARAM(&ctx as *const CloseCtx as isize));
     }
     let deadline = Instant::now() + timeout;
     let mut stubborn = vec![];
-    for f in &found {
+    for f in found {
         let left = deadline.saturating_duration_since(Instant::now()).as_millis() as u32;
         if unsafe { WaitForSingleObject(f.handle.0, left) } != WAIT_OBJECT_0 {
             stubborn.push(f);

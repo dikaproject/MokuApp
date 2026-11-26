@@ -23,6 +23,7 @@ features = [
     "Win32_System_Com",                  # IShellLinkW + IPersistFile
     "Win32_System_Diagnostics_ToolHelp", # find running Moku processes
     "Win32_System_Registry",             # uninstall entry, Run value
+    "Win32_System_RestartManager",       # install log: which processes hold files of the folder
     "Win32_System_Threading",            # OpenProcess, single-instance mutex
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",      # WM_CLOSE to Moku's own windows
