@@ -459,7 +459,43 @@ fn want_visible(paused: bool, suppressed: u32, fullscreen_hides: bool, forced: u
     !paused && suppressed == 0 && (!fullscreen_hides || forced > 0)
 }
 
+/// The window classes of the desktop itself. Showing the desktop (Win+D, "minimize all") brings one
+/// of them to the front, covering the whole monitor, and the shell then reports `QUNS_BUSY` as if a
+/// full-screen app were running: the island must not hide for it.
+pub(crate) fn is_desktop_class(class: &str) -> bool {
+    matches!(class, "Progman" | "WorkerW")
+}
+
+/// A window with a title bar (`WS_CAPTION`) is an ordinary window, never a full-screen app: not even
+/// a maximized one while the shell still answers `QUNS_BUSY` for a few seconds after the desktop was
+/// in front (full-screen video, games and slide shows have no title bar).
+pub(crate) fn is_framed(style: u32) -> bool {
+    style & WS_CAPTION.0 == WS_CAPTION.0
+}
+
+/// The foreground window cannot be a full-screen app: it is the desktop ([`is_desktop_class`]) or an
+/// ordinary framed window ([`is_framed`]).
+pub(crate) fn foreground_rules_out_fullscreen() -> bool {
+    unsafe {
+        let h = GetForegroundWindow();
+        if h.0.is_null() {
+            return false;
+        }
+        let mut buf = [0u16; 64];
+        let n = GetClassNameW(h, &mut buf);
+        if n > 0 && is_desktop_class(&String::from_utf16_lossy(&buf[..n as usize])) {
+            return true;
+        }
+        is_framed(GetWindowLongPtrW(h, GWL_STYLE) as u32)
+    }
+}
+
+/// A full-screen app, a game or a presentation is in front. Not the desktop and not a window with a
+/// title bar (see [`foreground_rules_out_fullscreen`]).
 pub(crate) fn fullscreen_busy() -> bool {
+    if foreground_rules_out_fullscreen() {
+        return false;
+    }
     matches!(unsafe { SHQueryUserNotificationState() }, Ok(QUNS_BUSY) | Ok(QUNS_RUNNING_D3D_FULL_SCREEN) | Ok(QUNS_PRESENTATION_MODE))
 }
 
@@ -467,6 +503,11 @@ extern "system" fn on_foreground(_: HWINEVENTHOOK, _: u32, _: HWND, _: i32, _: i
     // Deferred, not dropped, when the app is busy (a modal loop / synchronous COM call):
     // a lost foreground change would leave the island hidden (or shown) until the next one.
     with_app_or_defer(|a| {
+        // The shell's own "a full-screen app is here" hint does not apply to the desktop either.
+        if a.shell.fs_appbar && foreground_rules_out_fullscreen() {
+            a.shell.fs_appbar = false;
+            a.refresh_visibility(true);
+        }
         let busy = fullscreen_busy();
         if busy != a.shell.fullscreen {
             a.shell.fullscreen = busy;
@@ -775,7 +816,30 @@ fn role_of(h: HWND) -> Role {
 }
 #[cfg(test)]
 mod tests {
-    use super::{hides_unless_forced, pointer_is_passive, want_visible};
+    use super::{hides_unless_forced, is_desktop_class, is_framed, pointer_is_passive, want_visible};
+    use windows::Win32::UI::WindowsAndMessaging::{WS_CAPTION, WS_POPUP, WS_THICKFRAME, WS_VISIBLE};
+
+    #[test]
+    fn a_window_with_a_title_bar_is_never_full_screen() {
+        // A maximized Chrome / Explorer window: title bar + resize frame.
+        assert!(is_framed(WS_CAPTION.0 | WS_THICKFRAME.0 | WS_VISIBLE.0));
+        // A full-screen video / game / slide show: a bare popup, no title bar.
+        assert!(!is_framed(WS_POPUP.0 | WS_VISIBLE.0));
+        assert!(!is_framed(WS_THICKFRAME.0 | WS_VISIBLE.0), "a resize frame alone is not a title bar");
+        assert!(!is_framed(0));
+    }
+
+    #[test]
+    fn the_desktop_is_not_a_full_screen_app() {
+        // Win+D / "minimize all" puts one of these in front, covering the monitor; the shell then
+        // answers QUNS_BUSY, and the island must stay (it vanished from the desktop before).
+        assert!(is_desktop_class("Progman"));
+        assert!(is_desktop_class("WorkerW"));
+        // Real windows are never mistaken for it.
+        for c in ["Chrome_WidgetWin_1", "MokuIsland", "Shell_TrayWnd", "Windows.UI.Core.CoreWindow", "progman", ""] {
+            assert!(!is_desktop_class(c), "{c:?}");
+        }
+    }
 
     #[test]
     fn visibility_rules() {

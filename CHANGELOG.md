@@ -4,7 +4,11 @@ All notable changes to Moku. The format follows [Keep a Changelog](https://keepa
 and versions follow [Semantic Versioning](https://semver.org/). The release workflow publishes
 the section of the tagged version as the GitHub release notes.
 
-## [Unreleased]
+## [0.3.2] - 2026-11-26
+
+Two fixes: the island no longer vanishes when the desktop is shown, and updating from inside Moku no
+longer stops at the last step when something still holds Moku's folder. This release is not
+code-signed yet.
 
 ### Fixed
 
@@ -20,6 +24,12 @@ the section of the tagged version as the GitHub release notes.
   launched the update quits itself, and may have helpers), and gives windows 10 s to close. When a swap
   fails, `%TEMP%\moku-setup.log` has the step, the path, the OS error, the processes still running from
   the folder and the processes the Restart Manager says hold its files.
+- **The island no longer disappears when the desktop is shown** (Win+D, "minimize all", clicking the
+  empty desktop). Windows reports the desktop window as a full-screen app (`QUNS_BUSY`), and "Sembunyikan
+  saat layar penuh" hid the island for it. The desktop (`Progman` / `WorkerW`) is no longer counted, also
+  for the shell's own full-screen hint. For the few seconds after leaving the desktop the shell still says
+  "busy", so a window with a title bar (a maximized browser, say) is never taken for a full-screen app
+  either. Real full-screen video, games and presentations (no title bar) still hide the island.
 
 ## [0.3.1] - 2026-11-26
 

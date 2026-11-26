@@ -1681,7 +1681,9 @@ impl App {
     /// foreground-based flag is re-queried too, so the two never disagree for long (the appbar
     /// says "gone" while the shell still reports a full-screen D3D app, or the reverse).
     pub(crate) fn on_fullscreen_hint(&mut self, on: bool) {
-        self.shell.fs_appbar = on;
+        // The desktop (Win+D) and ordinary windows with a title bar are not full-screen apps,
+        // whatever the shell hints.
+        self.shell.fs_appbar = on && !shell::foreground_rules_out_fullscreen();
         self.shell.fullscreen = shell::fullscreen_busy();
         self.refresh_visibility(true);
     }

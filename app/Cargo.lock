@@ -2314,7 +2314,7 @@ dependencies = [
 
 [[package]]
 name = "moku"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "chrono",
  "moku-core",
@@ -2327,7 +2327,7 @@ dependencies = [
 
 [[package]]
 name = "moku-core"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -2337,7 +2337,7 @@ dependencies = [
 
 [[package]]
 name = "moku-settings"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "moku-core",
  "slint",
@@ -2346,7 +2346,7 @@ dependencies = [
 
 [[package]]
 name = "moku-setup"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "moku-core",
  "slint",
@@ -2355,7 +2355,7 @@ dependencies = [
 
 [[package]]
 name = "mokuctl"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "moku-core",
  "serde_json",
