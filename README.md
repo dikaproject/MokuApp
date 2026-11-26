@@ -42,11 +42,11 @@ Every feature can be switched off, and a switched-off feature costs nothing. Idl
 
 Download `moku-setup.exe` from the [latest release](https://github.com/dikaproject/MokuApp/releases/latest)
 and run it: it installs for your account only (no admin rights) and can start Moku with Windows. A
-portable zip is attached too. Releases up to v0.3.0 are not code-signed, so Windows SmartScreen may
-warn the first time: *More info → Run anyway*, or compare the installer's SHA-256 with
-`moku-setup.exe.sha256` from the same release. Releases from v0.3.1 on are signed once SignPath
-approves the project; see the [Code signing policy](CODE_SIGNING_POLICY.md). What Moku sends over the
-network, and when, is in the [privacy policy](PRIVACY.md).
+portable zip is attached too. Releases are not code-signed yet, so Windows SmartScreen may warn the
+first time: *More info → Run anyway*, or compare the installer's SHA-256 with
+`moku-setup.exe.sha256` from the same release. Signing starts with the first release made after
+SignPath approves the project; see the [Code signing policy](CODE_SIGNING_POLICY.md). What Moku sends
+over the network, and when, is in the [privacy policy](PRIVACY.md).
 
 ## Build from source
 
@@ -88,8 +88,8 @@ The best way to help is a pull request or an issue here, so everyone gets the im
 
 ## Code signing policy
 
-Releases from v0.3.1 on are signed once SignPath approves the project. Who may approve a signing
-request, what is signed and how releases are built is in [`CODE_SIGNING_POLICY.md`](CODE_SIGNING_POLICY.md).
+Releases are signed from the first one made after SignPath approves the project (none is signed yet).
+Who may approve a signing request, what is signed and how releases are built is in [`CODE_SIGNING_POLICY.md`](CODE_SIGNING_POLICY.md).
 The privacy policy (what Moku sends over the network, and when) is in [`PRIVACY.md`](PRIVACY.md).
 
 ## License

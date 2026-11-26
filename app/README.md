@@ -15,11 +15,11 @@ Moku is desktop-only for now. The UI is Indonesian by default, with English avai
    `%LOCALAPPDATA%\Programs\Moku`, adds a Start Menu shortcut and an entry in Apps & Features,
    and can start Moku with Windows.
 
-**SmartScreen:** releases up to v0.3.0 are not code-signed, so Windows SmartScreen may say
+**SmartScreen:** releases are not code-signed yet, so Windows SmartScreen may say
 "Windows protected your PC" the first time. Choose "More info" → "Run anyway". To check the
 file first, compare its SHA-256 with `moku-setup.exe.sha256` from the same release:
-`(Get-FileHash .\moku-setup.exe -Algorithm SHA256).Hash`. Releases from v0.3.1 on are signed once
-SignPath approves the project; see the [code signing policy](../CODE_SIGNING_POLICY.md) and, for what
+`(Get-FileHash .\moku-setup.exe -Algorithm SHA256).Hash`. Signing starts with the first release made
+after SignPath approves the project; see the [code signing policy](../CODE_SIGNING_POLICY.md) and, for what
 Moku sends over the network, the [privacy policy](../PRIVACY.md).
 
 - Silent install: `moku-setup.exe /S` (add `/noautostart`, `/nolaunch` as needed).

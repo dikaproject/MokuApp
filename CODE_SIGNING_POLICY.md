@@ -2,9 +2,9 @@
 
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 
-> **Status.** Releases up to v0.3.0 are not code-signed. Releases from v0.3.1 on are signed once
-> SignPath approves the project; until then this page describes how signing will work and nothing
-> on the release page claims a signature that is not there.
+> **Status.** No release is code-signed yet (v0.3.0 and v0.3.1 are not). Signing starts with the first
+> release made after SignPath approves the project; until then this page describes how signing will
+> work and nothing on the release page claims a signature that is not there.
 
 This policy covers Moku, <https://github.com/dikaproject/MokuApp>, and the release files published
 at <https://github.com/dikaproject/MokuApp/releases>.

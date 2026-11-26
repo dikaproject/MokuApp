@@ -4,7 +4,10 @@ All notable changes to Moku. The format follows [Keep a Changelog](https://keepa
 and versions follow [Semantic Versioning](https://semver.org/). The release workflow publishes
 the section of the tagged version as the GitHub release notes.
 
-## [Unreleased]
+## [0.3.1] - 2026-11-26
+
+A new island mode so Moku stays out of the way when nothing is going on, plus the code signing and
+privacy policies the SignPath Foundation application needs. This release is not code-signed yet.
 
 ### Added
 
