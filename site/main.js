@@ -112,6 +112,17 @@
   }, { rootMargin: "-46% 0px -46% 0px", threshold: 0 });
   scenes.forEach((s) => io.observe(s));
 
+  /* the feature cards rise in as they are scrolled to; without JS they are simply there */
+  const cards = [...document.querySelectorAll(".bx")];
+  if ("IntersectionObserver" in window && !reduced) {
+    root.classList.add("js");
+    cards.forEach((c, i) => c.style.setProperty("--i", String(i % 4)));
+    const cio = new IntersectionObserver((es) => es.forEach((e) => {
+      if (e.isIntersecting) { e.target.classList.add("is-in"); cio.unobserve(e.target); }
+    }), { rootMargin: "0px 0px -8% 0px" });
+    cards.forEach((c) => cio.observe(c));
+  }
+
   /* the island wakes up once, then follows the page */
   tickClock();
   setTimeout(() => { if (state === "boot") { show("idle"); state = "idle"; } }, reduced ? 0 : 450);

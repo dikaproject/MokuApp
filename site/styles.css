@@ -15,6 +15,7 @@
   --buoy: #FF6A2B;
   --line: rgba(11, 22, 32, .16);
   --deep-bg: #0B1620;
+  --card: #F2F5F7;
   --deep-ink: #E7ECEF;
   --black: #05090D;
   --bar-h: 64px;
@@ -33,6 +34,7 @@
     --on-tide: #05090D;
     --line: rgba(231, 236, 239, .18);
     --deep-bg: #050A10;
+    --card: #121F2B;
   }
 }
 
@@ -230,9 +232,29 @@ mark { background: rgba(255, 106, 43, .3); color: #fff; border-radius: 4px; padd
 .facts dt { font-size: .85rem; font-weight: 600; color: var(--slate); }
 .facts dd { margin: 3px 0 0; font-size: .98rem; }
 .more { padding: clamp(72px, 12vh, 140px) 0; border-top: 1px solid var(--line); }
-.more__list { list-style: none; margin: clamp(32px, 5vw, 56px) 0 0; padding: 0; columns: 2; column-gap: clamp(32px, 6vw, 88px); }
-.more__list li { break-inside: avoid; padding: 18px 0; border-top: 1px solid var(--line); color: var(--slate); }
-.more__list strong { display: block; color: var(--ink); font-weight: 650; }
+.more__lead { margin: 18px 0 0; max-width: 52ch; color: var(--slate); font-size: 1.1rem; line-height: 1.65; }
+
+/* every feature as a card; each card carries the little pill it would show on the island */
+.bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; margin-top: clamp(32px, 5vw, 56px); }
+.bx { grid-column: span 3; display: flex; flex-direction: column; gap: 10px; padding: 22px 22px 24px; border: 1px solid var(--line); border-radius: 22px; background: var(--card); transition: transform .5s var(--spring), border-color .25s, box-shadow .35s; }
+.bx:hover { transform: translateY(-4px); border-color: var(--tide); box-shadow: 0 18px 40px -22px rgba(11, 22, 32, .45); }
+.bx--7 { grid-column: span 7; } .bx--5 { grid-column: span 5; } .bx--4 { grid-column: span 4; } .bx--3 { grid-column: span 3; }
+.bx__tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: auto; padding-bottom: 28px; }
+.bx h3 { margin: 0; font: 650 1.3rem/1.15 var(--display); letter-spacing: -.02em; }
+.bx p { margin: 0; color: var(--slate); font-size: .98rem; line-height: 1.55; }
+.bx code { font-size: .88em; }
+.chip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 13px; border-radius: 999px; background: var(--black); color: #E7ECEF; font: 600 .78rem/1 var(--sans); white-space: nowrap; }
+.chip i { width: 7px; height: 7px; border-radius: 50%; background: var(--buoy); flex: none; }
+.chip--key { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-weight: 500; letter-spacing: .01em; }
+.bx--tide { background: var(--tide); border-color: transparent; color: var(--on-tide); }
+.bx--tide p { color: color-mix(in srgb, var(--on-tide) 82%, transparent); }
+.bx--tide:hover { border-color: transparent; }
+.bx--tide .bx__tags { padding-bottom: 54px; }
+.bx--ink { background: var(--deep-bg); border-color: transparent; color: var(--deep-ink); }
+.bx--ink p { color: #9AA8B3; }
+.bx--ink .chip { background: #16232F; }
+html.js .bx { opacity: 0; translate: 0 18px; transition: transform .5s var(--spring), border-color .25s, box-shadow .35s, opacity .6s ease, translate .7s var(--spring); transition-delay: 0s, 0s, 0s, calc(var(--i, 0) * 45ms), calc(var(--i, 0) * 45ms); }
+html.js .bx.is-in { opacity: 1; translate: 0 0; }
 
 .deep { background: var(--deep-bg); color: var(--deep-ink); padding: clamp(72px, 14vh, 160px) 0; }
 .deep h2 { max-width: 20ch; }
@@ -301,7 +323,8 @@ mark { background: rgba(255, 106, 43, .3); color: #fff; border-radius: 4px; padd
   .scene__text::before { left: -12px; }
 }
 @media (max-width: 820px) {
-  .more__list { columns: 1; }
+  .bx--7, .bx--5, .bx--4 { grid-column: span 6; }
+  .bx--3 { grid-column: span 6; }
   .shots figure:nth-child(n) { grid-column: 1 / -1; margin-top: 0; }
   .install__grid > div:first-child, .getbox { grid-column: 1 / -1; }
   .foot__brand, .foot__made, .foot__nav { grid-column: 1 / -1; justify-content: flex-start; }
@@ -313,9 +336,12 @@ mark { background: rgba(255, 106, 43, .3); color: #fff; border-radius: 4px; padd
   .bar__end .btn--small { display: none; }   /* the hero has the real download button; the island needs the room */
   .hero__title { max-width: 10ch; }
   .btn { width: 100%; }
+  .bento { grid-template-columns: 1fr; }
+  .bx--7, .bx--5, .bx--4, .bx--3 { grid-column: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html.js .bx { opacity: 1; translate: 0 0; transition: none; }
   html { scroll-behavior: auto; }
   .island__body, .st, .scene__text::before, .btn, .b, .faq summary::after { transition: none !important; }
   .island[data-state="polite"] .island__body, .bars i, .stage[data-state="polite"] .cursor, .stage[data-state="polite"] .win__addr { animation: none !important; }
