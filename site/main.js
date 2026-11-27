@@ -4,6 +4,9 @@
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const $ = (s, r = document) => r.querySelector(s);
   const island = $("#island");
+  const stage = $("#stage");
+  const screen = $("#screen");
+  const show = (name) => { island.dataset.state = name; stage.dataset.state = name; };
 
   /* ---------- language ---------- */
   const root = document.documentElement;
@@ -25,7 +28,7 @@
   function setState(next) {
     if (next === state) return;
     state = next;
-    island.dataset.state = next;
+    show(next);
     clear();
     if (next === "panel") startLyrics();
     if (next === "timer") startTimer();
@@ -38,8 +41,8 @@
     allow.classList.remove("is-pressed");
     if (reduced) return;
     later(() => allow.classList.add("is-pressed"), 2800);
-    later(() => { island.dataset.state = "done"; state = "done"; }, 3300);
-    later(() => { allow.classList.remove("is-pressed"); island.dataset.state = "agent"; state = "agent"; agentLoop(); }, 6200);
+    later(() => { show("done"); state = "done"; }, 3300);
+    later(() => { allow.classList.remove("is-pressed"); show("agent"); state = "agent"; agentLoop(); }, 6200);
   }
 
   /* real local time in the idle pill, like the app */
@@ -47,6 +50,7 @@
     const d = new Date();
     const hh = String(d.getHours()).padStart(2, "0"), mm = String(d.getMinutes()).padStart(2, "0");
     $(".st--idle .num").textContent = `${hh}.${mm}`;
+    $(".dock__clock").textContent = `${hh}.${mm}`;
   }
   setInterval(() => { if (state === "idle" || state === "polite") tickClock(); }, 15000);
 
@@ -110,7 +114,35 @@
 
   /* the island wakes up once, then follows the page */
   tickClock();
-  setTimeout(() => { if (state === "boot") { island.dataset.state = "idle"; state = "idle"; } }, reduced ? 0 : 450);
+  setTimeout(() => { if (state === "boot") { show("idle"); state = "idle"; } }, reduced ? 0 : 450);
+
+  /* ?state=panel&p=48 pins a state (and the lyric sweep position) for screenshots and design review */
+  const params = new URLSearchParams(location.search);
+  if (params.get("state")) {
+    setTimeout(() => {
+      state = params.get("state");
+      show(state);
+      if (state === "panel") startLyrics();
+      if (params.get("p")) {
+        clear();
+        const n = $("#lyr-now");
+        n.classList.remove("is-run");
+        n.textContent = LYRICS[0][1];
+        $("#lyr-prev").textContent = " ";
+        $("#lyr-next").textContent = LYRICS[0][2];
+        n.style.setProperty("--p", params.get("p") + "%");
+      }
+    }, 600);
+  }
+
+  /* the island scales with the screen it sits on (the panel is 456 px wide) */
+  const fit = () => {
+    const w = screen.getBoundingClientRect().width;
+    const s = Math.max(.6, Math.min(1.14, (w - 56) / 456));
+    island.style.setProperty("--s", s.toFixed(3));
+  };
+  if ("ResizeObserver" in window) new ResizeObserver(fit).observe(screen); else fit();
+  fit();
 
   /* ---------- download: the buttons work without JS (releases/latest/download); this adds version, size and checksum ---------- */
   let release = null;
