@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moku: dynamic island untuk Windows</title>
+<meta name="description" content="Moku adalah pulau kecil di tepi atas layar Windows: musik dan lirik, timer, notifikasi, izin agen coding, Tanya AI. Gratis, open source, tanpa akun, semua data tetap di PC-mu.">
+<meta name="color-scheme" content="light dark">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Moku: dynamic island untuk Windows">
+<meta property="og:description" content="Musik dan lirik, timer, notifikasi, izin agen coding dan Tanya AI dalam satu pulau kecil di tepi layar. Gratis dan open source.">
+<meta property="og:image" content="https://dikaproject.github.io/MokuApp/assets/shot-today.png">
+<link rel="canonical" href="https://dikaproject.github.io/MokuApp/">
+<link rel="icon" href="assets/moku.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="moku-g" x1="10" y1="0" x2="90" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4FD8FF"/><stop offset=".5" stop-color="#7C6BFF"/><stop offset="1" stop-color="#FF5FA2"/>
+    </linearGradient>
+    <symbol id="moku" viewBox="0 0 100 100">
+      <path d="M10 70H25V51A12.5 12.5 0 0 1 50 51V70V51A12.5 12.5 0 0 1 75 51V70H90" fill="none" stroke="url(#moku-g)" stroke-width="9.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="bar">
+  <a class="bar__brand" href="#top" aria-label="Moku">
+    <svg class="logo" width="28" height="28" aria-hidden="true"><use href="#moku"/></svg>
+    <span>Moku</span>
+  </a>
+  <nav class="bar__nav" aria-label="Menu">
+    <a href="#fitur"><span lang="id">Fitur</span><span lang="en">Features</span></a>
+    <a href="#privasi"><span lang="id">Privasi</span><span lang="en">Privacy</span></a>
+    <a href="#pasang"><span lang="id">Pasang</span><span lang="en">Install</span></a>
+    <a href="https://github.com/dikaproject/MokuApp">GitHub</a>
+  </nav>
+  <div class="bar__end">
+    <button class="lang" type="button" id="lang" aria-label="Bahasa / Language"><span lang="id">EN</span><span lang="en">ID</span></button>
+    <a class="btn btn--small" href="https://github.com/dikaproject/MokuApp/releases/latest/download/moku-setup.exe"><span lang="id">Unduh</span><span lang="en">Download</span></a>
+  </div>
+</header>
+
+<!-- The island: the page behaves like the screen it describes. Decorative; every state is also written out in the text. -->
+<div class="island" id="island" data-state="boot" aria-hidden="true">
+  <div class="island__body">
+
+    <div class="st st--idle">
+      <svg class="logo" width="18" height="18"><use href="#moku"/></svg>
+      <span class="num">08.41</span>
+    </div>
+
+    <div class="st st--music">
+      <span class="art art--s"></span>
+      <span class="t">Midnight Drive</span>
+      <span class="bars"><i></i><i></i><i></i><i></i></span>
+    </div>
+
+    <div class="st st--timer">
+      <svg class="ring" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" class="ring__track"/><circle cx="12" cy="12" r="9" class="ring__arc" pathLength="100"/></svg>
+      <span class="dim">Fokus</span><span class="num">24:10</span>
+    </div>
+
+    <div class="st st--alert">
+      <svg class="warn" width="22" height="22" viewBox="0 0 24 24"><path d="M12 3 22 20H2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4.5M12 17.4v.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span class="stack"><span class="t">Gempa M 7,1 · 210 km dari Mentawai</span><span class="alertline">Berpotensi tsunami</span></span>
+    </div>
+
+    <div class="st st--agent">
+      <div class="agent__head"><span class="art art--m art--tide"></span><span class="t">Claude Code</span><span class="dim">meminta izin</span></div>
+      <div class="agent__cmd"><span class="dim">Jalankan perintah</span><code>npm test</code></div>
+      <div class="agent__btns"><span class="b b--ghost">Tolak</span><span class="b b--solid" id="agent-allow">Izinkan</span></div>
+    </div>
+
+    <div class="st st--done">
+      <svg width="18" height="18" viewBox="0 0 24 24" class="ok"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="t">Selesai</span><span class="dim num">3m 12s</span>
+    </div>
+
+    <div class="st st--ai">
+      <div class="ai__head"><span class="ai__badge"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 2.5l2.2 6.3 6.3 2.2-6.3 2.2L12 19.5l-2.2-6.3L3.5 11l6.3-2.2z" fill="currentColor"/></svg></span><span class="t">Tanya AI</span><span class="dim">dikirim ke api.openai.com</span></div>
+      <div class="ai__quote"><span class="doc"></span><span>Rapat dipindah ke Kamis pukul 14.00. Kode OTP <mark>••••••</mark> jangan dibagikan.</span></div>
+      <div class="ai__chips"><span>Terjemahkan</span><span>Ringkas</span><span>Jelaskan</span><span>Perbaiki tulisan</span></div>
+      <div class="ai__note dim">1 data sensitif disamarkan sebelum dikirim</div>
+    </div>
+
+    <div class="st st--panel">
+      <div class="mp">
+        <span class="art art--l"></span>
+        <div class="mp__meta"><span class="mp__title">Midnight Drive</span><span class="dim">Kaia · Neon Atlas</span></div>
+        <div class="lyr" id="lyr">
+          <span class="lyr__l lyr__l--prev" id="lyr-prev"></span>
+          <span class="lyr__l lyr__l--now" id="lyr-now"></span>
+          <span class="lyr__l lyr__l--next" id="lyr-next"></span>
+        </div>
+        <div class="mp__bar"><span class="num dim">1:12</span><span class="mp__track"><i></i></span><span class="num dim">3:47</span></div>
+        <div class="mp__ctl">
+          <svg width="18" height="18" viewBox="0 0 24 24"><path d="M6 5v14M19 5v14L9 12z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>
+          <span class="mp__play"><svg width="20" height="20" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/></svg></span>
+          <svg width="18" height="18" viewBox="0 0 24 24"><path d="M18 5v14M5 5v14l10-7z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<main id="top">
+
+  <section class="hero" data-island="idle">
+    <div class="wrap">
+      <h1 class="hero__title">
+        <span lang="id">Pulau kecil di tepi layar Windows-mu.</span>
+        <span lang="en">A small island at the edge of your Windows screen.</span>
+      </h1>
+      <p class="hero__lead">
+        <span lang="id">Musik, timer, notifikasi, dan izin dari agen coding muncul di satu tempat, lalu menyingkir saat tidak dibutuhkan. Gratis, open source, tanpa akun.</span>
+        <span lang="en">Music, timers, notifications and permission requests from coding agents show up in one place, then get out of the way. Free, open source, no account.</span>
+      </p>
+      <div class="get">
+        <a class="btn btn--primary" id="dl-main" href="https://github.com/dikaproject/MokuApp/releases/latest/download/moku-setup.exe">
+          <span lang="id">Unduh untuk Windows</span><span lang="en">Download for Windows</span>
+        </a>
+        <a class="btn btn--ghost" href="https://github.com/dikaproject/MokuApp">
+          <span lang="id">Lihat kodenya di GitHub</span><span lang="en">See the code on GitHub</span>
+        </a>
+      </div>
+      <p class="get__meta" id="dl-meta" aria-live="polite">
+        <span lang="id">Untuk Windows 10 (1903 ke atas) dan 11. Unduhan langsung dari GitHub Releases.</span>
+        <span lang="en">For Windows 10 (1903 and later) and 11. Direct download from GitHub Releases.</span>
+      </p>
+    </div>
+  </section>
+
+  <div id="fitur"></div>
+
+  <section class="scene" data-island="panel">
+    <div class="wrap scene__grid">
+      <div class="scene__text">
+        <h2><span lang="id">Lirik yang menyala kata demi kata.</span><span lang="en">Lyrics that light up word by word.</span></h2>
+        <p>
+          <span lang="id">Moku membaca lagu dari aplikasi apa pun yang memakai kontrol media Windows, lalu mencari liriknya di LRCLIB. Sorotannya menyapu kata demi kata mengikuti lagu. Kalau yang muncul lagu lain, tekan “Bukan lagu ini” dan pilihanmu diingat.</span>
+          <span lang="en">Moku reads the song from any app that uses Windows media controls and looks the lyrics up on LRCLIB. The highlight sweeps along word by word with the music. If it is the wrong song, press “Bukan lagu ini” and your choice is remembered.</span>
+        </p>
+      </div>
+      <dl class="facts">
+        <div><dt><span lang="id">Sumber lirik</span><span lang="en">Lyrics source</span></dt><dd><span lang="id">LRCLIB, database terbuka dari komunitas</span><span lang="en">LRCLIB, an open community database</span></dd></div>
+        <div><dt><span lang="id">Biaya CPU</span><span lang="en">CPU cost</span></dt><dd><span lang="id">Hampir nol: sapuannya digambar kartu grafis, bukan diulang tiap frame</span><span lang="en">Close to zero: the sweep is drawn by the GPU compositor, not redrawn every frame</span></dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="scene" data-island="timer">
+    <div class="wrap scene__grid">
+      <div class="scene__text">
+        <h2><span lang="id">Timer yang tetap kelihatan.</span><span lang="en">A timer you can always see.</span></h2>
+        <p>
+          <span lang="id">Pomodoro, timer, dan stopwatch hidup di pil. Selama ada yang berjalan, island tetap tampil. Saat tidak ada apa-apa, ia bisa bersembunyi dan muncul lagi begitu kursormu menyentuh tepi atas.</span>
+          <span lang="en">Pomodoro, timers and a stopwatch live in the pill. While something is running the island stays up. When nothing is going on it can hide, and returns as soon as your pointer touches the top edge.</span>
+        </p>
+      </div>
+      <dl class="facts">
+        <div><dt><span lang="id">Mode sembunyi</span><span lang="en">Hide mode</span></dt><dd><span lang="id">Mati, hanya saat idle, atau selalu sampai tepi atas</span><span lang="en">Off, only when idle, or always until the top edge</span></dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="scene" data-island="alert">
+    <div class="wrap scene__grid">
+      <div class="scene__text">
+        <h2><span lang="id">Kabar penting datang sendiri.</span><span lang="en">Important news finds you.</span></h2>
+        <p>
+          <span lang="id">Gempa dan peringatan tsunami dari BMKG, waktu sholat dengan hitung mundur berbuka, libur nasional, kurs, dan kualitas udara. Peringatan tsunami selalu tampil, bahkan di atas aplikasi layar penuh.</span>
+          <span lang="en">Earthquake and tsunami alerts from BMKG, prayer times with an iftar countdown, public holidays, exchange rates and air quality. A tsunami warning always shows, even over a full-screen app.</span>
+        </p>
+      </div>
+      <dl class="facts">
+        <div><dt><span lang="id">Data dari</span><span lang="en">Data from</span></dt><dd>BMKG, Open-Meteo, Frankfurter</dd></div>
+        <div><dt><span lang="id">Hanya jika dinyalakan</span><span lang="en">Only when switched on</span></dt><dd><span lang="id">Fitur yang mati tidak membuat permintaan apa pun</span><span lang="en">A switched-off feature makes no request</span></dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="scene" data-island="agent">
+    <div class="wrap scene__grid">
+      <div class="scene__text">
+        <h2><span lang="id">Izin untuk agen coding, tanpa pindah jendela.</span><span lang="en">Permission for coding agents, without switching windows.</span></h2>
+        <p>
+          <span lang="id">Claude Code, Codex CLI, dan Gemini CLI meminta izin lewat kartu di island. Satu klik, lalu agennya lanjut. Saat selesai kamu dapat pil singkat dengan lama kerjanya.</span>
+          <span lang="en">Claude Code, Codex CLI and Gemini CLI ask for permission through a card on the island. One click and the agent carries on. When it finishes you get a short pill with how long it took.</span>
+        </p>
+      </div>
+      <dl class="facts">
+        <div><dt><span lang="id">“Selalu izinkan”</span><span lang="en">“Always allow”</span></dt><dd><span lang="id">Mati secara default, dan hanya cocok dengan perintah yang persis sama</span><span lang="en">Off by default, and only matches the exact same command</span></dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="scene" data-island="ai">
+    <div class="wrap scene__grid">
+      <div class="scene__text">
+        <h2><span lang="id">Tanya AI yang jujur soal datamu.</span><span lang="en">An AI helper that is honest about your data.</span></h2>
+        <p>
+          <span lang="id">Pilih teks di aplikasi apa pun, tekan Ctrl+Alt+A, lalu terjemahkan, ringkas, atau jelaskan. Pakai penyedia yang kamu mau. Kartunya menunjukkan persis apa yang dikirim dan ke mana, dan kode OTP, nomor kartu, dan token disamarkan lebih dulu.</span>
+          <span lang="en">Select text in any app, press Ctrl+Alt+A, then translate, summarise or explain. Use any provider you like. The card shows exactly what is sent and where, and one-time codes, card numbers and tokens are masked first.</span>
+        </p>
+      </div>
+      <dl class="facts">
+        <div><dt><span lang="id">Penyedia</span><span lang="en">Providers</span></dt><dd>OpenAI, OpenRouter, Groq, Gemini, DeepSeek, Ollama, LM Studio</dd></div>
+        <div><dt><span lang="id">Kunci API</span><span lang="en">API key</span></dt><dd><span lang="id">Disimpan di Windows Credential Manager, tidak pernah di file</span><span lang="en">Kept in Windows Credential Manager, never in a file</span></dd></div>
+        <div><dt><span lang="id">Memori</span><span lang="en">Memory</span></dt><dd><span lang="id">Dienkripsi untuk akun Windows-mu, hanya di PC ini</span><span lang="en">Encrypted for your Windows account, on this PC only</span></dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="scene" data-island="polite">
+    <div class="wrap scene__grid">
+      <div class="scene__text">
+        <h2><span lang="id">Menyingkir saat kamu butuh layarnya.</span><span lang="en">Steps aside when you need the screen.</span></h2>
+        <p>
+          <span lang="id">Kalau kursormu menuju address bar browser, island memudar atau bergeser, dan kliknya tembus ke bawah. Ia kembali begitu kursor menjauh. Video layar penuh dan game juga menyembunyikannya.</span>
+          <span lang="en">When your pointer heads for the browser address bar, the island fades or slides away and clicks go through to what is underneath. It returns once you move off. Full-screen video and games hide it too.</span>
+        </p>
+      </div>
+      <dl class="facts">
+        <div><dt><span lang="id">Memori saat diam</span><span lang="en">Idle memory</span></dt><dd><span lang="id">Sekitar 45 MB dan 0% CPU</span><span lang="en">About 45 MB and 0% CPU</span></dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="more" id="lainnya" data-island="music">
+    <div class="wrap">
+      <h2><span lang="id">Dan perkakas kecil lainnya.</span><span lang="en">And a few more small tools.</span></h2>
+      <ul class="more__list">
+        <li><strong>Launcher</strong> <span lang="id">Alt+Space: cari aplikasi, hitung, tambah to-do, mulai timer.</span><span lang="en">Alt+Space: find apps, calculate, add a to-do, start a timer.</span></li>
+        <li><strong>OCR layar</strong> <span lang="id">Seret area di layar, teksnya tersalin. Dibaca di PC-mu.</span><span lang="en">Drag an area of the screen and the text is copied. Read on your PC.</span></li>
+        <li><strong>Clipboard</strong> <span lang="id">Riwayat teks dan gambar, dengan aksi cerdas dan penjaga kode OTP.</span><span lang="en">History of text and images, with smart actions and an OTP guard.</span></li>
+        <li><strong>Shelf</strong> <span lang="id">Taruh file sementara di island, lalu ubah formatnya.</span><span lang="en">Park files on the island and convert their format.</span></li>
+        <li><strong><span lang="id">Kirim ke HP</span><span lang="en">Send to phone</span></strong> <span lang="id">Lewat kode QR di Wi-Fi yang sama, ditolak di jaringan publik.</span><span lang="en">Via a QR code on the same Wi-Fi, refused on public networks.</span></li>
+        <li><strong><span lang="id">Mixer volume</span><span lang="en">Volume mixer</span></strong> <span lang="id">Atur volume per aplikasi dan lihat baterai earbuds.</span><span lang="en">Set volume per app and see earbud battery.</span></li>
+        <li><strong>Kalender</strong> <span lang="id">Alamat ICS dari Google atau Outlook, tanpa OAuth.</span><span lang="en">ICS addresses from Google or Outlook, no OAuth.</span></li>
+        <li><strong><span lang="id">Notifikasi Windows</span><span lang="en">Windows notifications</span></strong> <span lang="id">Muncul di island, kode OTP disamarkan.</span><span lang="en">Shown on the island, one-time codes masked.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="deep" id="privasi" data-island="idle">
+    <div class="wrap">
+      <h2><span lang="id">Tidak ada server. Tidak ada akun. Tidak ada pelacakan.</span><span lang="en">No server. No account. No tracking.</span></h2>
+      <ul class="deep__list">
+        <li><span lang="id">Semua datamu ada di <code>%APPDATA%\Moku</code>, di PC ini saja.</span><span lang="en">All your data lives in <code>%APPDATA%\Moku</code>, on this PC only.</span></li>
+        <li><span lang="id">Satu-satunya lalu lintas keluar berasal dari fitur yang kamu nyalakan: cuaca, lirik, cek pembaruan, dan penyedia AI pilihanmu.</span><span lang="en">The only traffic out comes from features you switch on: weather, lyrics, update checks and the AI provider you choose.</span></li>
+        <li><span lang="id">Pakai Ollama atau LM Studio untuk Tanya AI, dan tidak ada teks yang keluar dari PC-mu sama sekali.</span><span lang="en">Use Ollama or LM Studio for the AI helper and no text leaves your PC at all.</span></li>
+        <li><span lang="id">Daftar lengkap setiap layanan, kapan dihubungi, dan apa yang dikirim ada di <a href="https://github.com/dikaproject/MokuApp/blob/main/PRIVACY.md">kebijakan privasi</a>.</span><span lang="en">The full list of every service, when it is contacted and what is sent is in the <a href="https://github.com/dikaproject/MokuApp/blob/main/PRIVACY.md">privacy policy</a>.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="close" id="dekat" data-island="idle">
+    <div class="wrap">
+      <h2><span lang="id">Dari dekat.</span><span lang="en">Up close.</span></h2>
+      <div class="shots">
+        <figure class="shot--panel"><img src="assets/shot-today.png" width="636" height="427" loading="lazy" alt="Tab Hari ini: tanggal Hijriah, libur nasional, peringatan BMKG, cuaca, dan to-do"><figcaption><span lang="id">Hari ini: tanggal, libur, peringatan gempa, cuaca, dan to-do.</span><span lang="en">Today: date, holidays, earthquake alert, weather and to-dos.</span></figcaption></figure>
+        <figure class="shot--panel"><img src="assets/shot-ai.png" width="636" height="302" loading="lazy" alt="Kartu Tanya AI dengan penyedia, teks terpilih, dan data sensitif yang disamarkan"><figcaption><span lang="id">Tanya AI: ke mana teksmu dikirim, dan apa yang disamarkan.</span><span lang="en">Tanya AI: where your text goes, and what is masked.</span></figcaption></figure>
+        <figure><img src="assets/shot-settings.png" width="1002" height="732" loading="lazy" alt="Aplikasi pengaturan Moku, halaman Fitur"><figcaption><span lang="id">Pengaturan: satu warna aksen, semua fitur bisa dimatikan.</span><span lang="en">Settings: one accent colour, every feature can be switched off.</span></figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="install" id="pasang" data-island="idle">
+    <div class="wrap install__grid">
+      <div>
+        <h2><span lang="id">Pasang dalam semenit.</span><span lang="en">Installed in a minute.</span></h2>
+        <ol class="steps">
+          <li>
+            <span lang="id">Unduh <code>moku-setup.exe</code>. Pemasangnya hanya untuk akunmu, tanpa hak administrator.</span>
+            <span lang="en">Download <code>moku-setup.exe</code>. It installs for your account only, no administrator rights.</span>
+          </li>
+          <li>
+            <span lang="id">Jalankan. Windows SmartScreen mungkin memperingatkan karena Moku belum punya tanda tangan kode: pilih “More info”, lalu “Run anyway”, atau cocokkan SHA-256 di bawah.</span>
+            <span lang="en">Run it. Windows SmartScreen may warn because Moku is not code-signed yet: choose “More info”, then “Run anyway”, or compare the SHA-256 below.</span>
+          </li>
+          <li>
+            <span lang="id">Island muncul di tepi atas layar. Klik kanan ikon di tray untuk membuka Pengaturan. Pembaruan berikutnya datang dari dalam Moku.</span>
+            <span lang="en">The island appears at the top of your screen. Right-click the tray icon for Settings. Later updates arrive from inside Moku.</span>
+          </li>
+        </ol>
+      </div>
+      <div class="getbox">
+        <a class="btn btn--primary btn--wide" id="dl-main-2" href="https://github.com/dikaproject/MokuApp/releases/latest/download/moku-setup.exe"><span lang="id">Unduh moku-setup.exe</span><span lang="en">Download moku-setup.exe</span></a>
+        <p class="getbox__meta" id="dl-meta-2"></p>
+        <a class="getbox__alt" id="dl-zip" href="https://github.com/dikaproject/MokuApp/releases/latest"><span lang="id">Versi portabel (zip) dan semua rilis</span><span lang="en">Portable version (zip) and all releases</span></a>
+        <div class="sha" id="sha-row" hidden>
+          <span class="sha__label">SHA-256</span>
+          <code id="sha-val"></code>
+          <button type="button" class="sha__copy" id="sha-copy"><span lang="id">Salin</span><span lang="en">Copy</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="faq" id="faq" data-island="idle">
+    <div class="wrap">
+      <h2><span lang="id">Pertanyaan yang sering muncul.</span><span lang="en">Common questions.</span></h2>
+      <div class="faq__list">
+        <details><summary><span lang="id">Apakah Moku gratis?</span><span lang="en">Is Moku free?</span></summary><p><span lang="id">Ya. Moku adalah perangkat lunak bebas di bawah GPL-3.0. Kamu boleh memakai, mempelajari, mengubah, dan membagikannya. Versi ubahan yang dibagikan harus tetap terbuka, mencantumkan kredit ke repo resmi, dan memakai nama serta logo sendiri.</span><span lang="en">Yes. Moku is free software under the GPL-3.0. You can use, study, change and share it. A modified version you share must stay open, credit the official repository and use its own name and logo.</span></p></details>
+        <details><summary><span lang="id">Kenapa Windows memperingatkan saat memasang?</span><span lang="en">Why does Windows warn me when installing?</span></summary><p><span lang="id">Rilisnya belum ditandatangani dengan sertifikat kode, dan file baru belum punya reputasi di SmartScreen. Bukan deteksi virus. Setiap rilis dibangun otomatis di GitHub Actions dari kode yang terbuka, dan kamu bisa mencocokkan SHA-256-nya. Kami sudah mengajukan penandatanganan kode gratis untuk proyek open source.</span><span lang="en">The release is not code-signed yet and a new file has no SmartScreen reputation. It is not a virus detection. Every release is built automatically on GitHub Actions from the open code, and you can compare its SHA-256. We have applied for free code signing for open source projects.</span></p></details>
+        <details><summary><span lang="id">Apakah berjalan di Windows 10?</span><span lang="en">Does it run on Windows 10?</span></summary><p><span lang="id">Ya, Windows 10 versi 1903 ke atas dan Windows 11. Tampilan kaca di belakang island bergantung pada dukungan sistemmu.</span><span lang="en">Yes, Windows 10 version 1903 and later, and Windows 11. The glass look behind the island depends on what your system supports.</span></p></details>
+        <details><summary><span lang="id">Bagaimana cara memperbarui?</span><span lang="en">How do I update?</span></summary><p><span lang="id">Moku mengecek GitHub sekali sehari dan menampilkan pil “tersedia”. Kamu juga bisa membuka Pengaturan, Tentang, lalu “Periksa sekarang”. Installernya baru dijalankan kalau SHA-256 dan tanda tangan ECDSA-nya cocok.</span><span lang="en">Moku checks GitHub once a day and shows an “available” pill. You can also open Settings, About, then “Periksa sekarang”. The installer only runs when its SHA-256 and ECDSA signature match.</span></p></details>
+        <details><summary><span lang="id">Bisakah fiturnya dimatikan?</span><span lang="en">Can I switch features off?</span></summary><p><span lang="id">Setiap fitur punya sakelar sendiri, dan fitur yang mati tidak memakai memori maupun jaringan.</span><span lang="en">Every feature has its own switch, and a switched-off feature uses no memory and no network.</span></p></details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot__grid">
+    <div class="foot__brand"><svg class="logo" width="26" height="26" aria-hidden="true"><use href="#moku"/></svg><span>Moku</span></div>
+    <p class="foot__made"><span lang="id">Dibuat dengan Rust. Gratis di bawah GPL-3.0, © 2026 Moku contributors. Situs ini tidak memakai pelacak, cookie, atau font pihak ketiga; satu-satunya permintaan keluar adalah info rilis dari GitHub.</span><span lang="en">Made with Rust. Free under the GPL-3.0, © 2026 Moku contributors. This site uses no trackers, cookies or third-party fonts; its only outgoing request is the release info from GitHub.</span></p>
+    <nav class="foot__nav" aria-label="Tautan">
+      <a href="https://github.com/dikaproject/MokuApp">GitHub</a>
+      <a href="https://github.com/dikaproject/MokuApp/releases">Rilis</a>
+      <a href="https://github.com/dikaproject/MokuApp/blob/main/PRIVACY.md"><span lang="id">Privasi</span><span lang="en">Privacy</span></a>
+      <a href="https://github.com/dikaproject/MokuApp/blob/main/CODE_SIGNING_POLICY.md"><span lang="id">Kebijakan tanda tangan kode</span><span lang="en">Code signing policy</span></a>
+      <a href="https://github.com/dikaproject/MokuApp/blob/main/NOTICE"><span lang="id">Kredit dan nama</span><span lang="en">Credit and name</span></a>
+    </nav>
+  </div>
+</footer>
+
+<script src="main.js" defer></script>
+</body>
+</html>

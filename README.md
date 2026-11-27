@@ -3,7 +3,7 @@
 Moku is a **dynamic island for Windows**: a small glass pill at the top of the screen that shows what
 is going on and opens into a panel when you point at it. It is written in Rust, runs on Windows 10
 (1903+) and 11, needs no account, has no server, and keeps everything on your PC. The interface is
-Indonesian by default; English is available.
+Indonesian by default; English is available. Website: <https://dikaproject.github.io/MokuApp/>.
 
 | Hari ini (today, BMKG, weather, to-dos) | Tanya AI (any OpenAI-compatible provider) |
 |---|---|
