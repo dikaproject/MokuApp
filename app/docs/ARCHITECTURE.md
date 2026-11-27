@@ -36,7 +36,7 @@ cargo test --workspace
 
 `moku.exe` flags (testing only): `--state idle|hover|music|music-panel|lyrics|lyrics-panel|panel` (fixed state for
 screenshots, `--tab <id>` with `panel`; `lyrics` / `lyrics-panel` run a fake player with timed lyrics through the
-real media and lyrics code, from `MOKU_DEMO_POS_MS` (default 1000), to look at and measure the word highlight),
+real media and lyrics code, from `MOKU_DEMO_POS_MS` (default 1000), to look at and measure the word highlight; `MOKU_DEMO_LYRICS=auto|chosen|none` shows the caption and buttons for Moku's own pick, a user's pick with an offset, or everything rejected),
 `--demo` (loops the prototype states), `--gpu`, `--blur`.
 In `--state`/`--demo` modes there is no tray, pipe, hit window, services or `on_start` — use a
 normal run plus `mokuctl debug …` to test a feature.
@@ -52,7 +52,7 @@ normal run plus `mokuctl debug …` to test a feature.
 | `services.rs` | `ServiceCtx`, service start/stop |
 | `ui/` | widget tree (`mod.rs`), layout (`layout.rs`), composite widgets (`widgets.rs`), glyphs (`icons.rs`), text editing model (`text_edit.rs`), QR encoder + `qr(text)` widget (`qr.rs`), the word-highlight line `karaoke(..)`: nodes, word positions, key-frame plan (`karaoke.rs`, pure + tested) |
 | `scene/` | composition engine (springs, morph, sprites, split bubble), D2D/DirectWrite (`gfx.rs`), `reduce.rs` (reduce motion: pure mapping, tested), `karaoke.rs` (the compositor side of the word highlight) |
-| `features/lyrics/` | synced lyrics: `lrc.rs` (LRC parser, enhanced word stamps kept), `words.rs` (when each word is sung: real stamps or an estimate), `title.rs` (cleaning messy titles / artists for the lookup), `lrclib.rs` (the client: the request plan, picking the hit), `mod.rs` (service, cache, the sung line) |
+| `features/lyrics/` | synced lyrics: `lrc.rs` (LRC parser, enhanced word stamps kept), `words.rs` (when each word is sung: real stamps or an estimate), `title.rs` (cleaning messy titles / artists for the lookup), `lrclib.rs` (the client: the request plan, `lookup` / `alternatives` over an injectable fetcher), `pick.rs` (judging and ranking LRCLIB entries), `view.rs` (the candidates, "Bukan lagu ini", the offset), `choices.rs` (`lyrics-choices.json`, the track key), `links.rs` (Genius / Musixmatch search addresses), `mod.rs` (service, cache, `LyricsState::handle`, the sung line) |
 | `shell/` | visual / hit / tray windows, input routing, hotkeys, fullscreen hide, tray menu; keyboard focus, IME, clipboard text (`keyboard.rs`); which monitor and where on it (`monitors.rs`, pure + tested); the input window's rectangle and region, which reaches up to the monitor's top edge over each shape's width (`hit.rs`, pure + tested) |
 | `ipc_server.rs` | named-pipe server, `Reply` |
 | `hotkeys.rs` | the five global hotkeys in one place (v0.3 fix): `register` refuses a combination another Moku feature holds (`Outcome::Clash`) and reports one another program holds (`Taken`), `announce` raises the one pill "Pintasan ... dipakai aplikasi lain" once per feature and combination; `moku_core::hotkey::{Slot, clash}` is the same rule for the settings app |
@@ -381,6 +381,27 @@ on shape geometry, offset, scale and opacity, started once and finite, so nothin
 glow steady, `"off"` shows the end state at once. A layer's children, bottom to top, are: glows
 (`under_root`), block sprites, live items (`live_root`), keyed sprites. `Op::Poly` is a filled polygon.
 
+**Lyric matching and corrections** (`features/lyrics/`). A wrong song is worse than none, so a lookup keeps only entries that
+*are* the song. `pick::judge` drops noise (an entry under 20 s, or whose lyrics run 20 s past its own length), then needs the
+title (`TitleMatch`: equal after cleaning and normalising, or equal once a bracket / " - " part is dropped; a longer title that
+merely contains it never matches, two different qualifiers are two versions), the artist (`ArtistMatch`: equal, one inside the
+other word for word, the same words, or a shared artist of a duet; required in every request type when the track has one) and the
+length (±3 s, ±5 s when artist and title are exact; without an artist the length has to vouch) for a **strict** hit. Looser hits
+(the same artist or the same title, ±10 s, synced) are kept for the user. `pick::rank` orders them: strict first, then one score
+(title 300/200, artist 200/140, length 300 minus 50 per second off, instrumental minus 150, +15 for a real album), the lowest LRCLIB
+id breaking ties (so: synced, exact length, has an album, lowest id); copies of the same lyrics are listed once; six are kept.
+`lrclib::lookup` follows the plan until a strict hit turns up (an exact `get` hit leaves the searches undone: `Lookup::searched`
+is false, and `alternatives` runs them only when the user presses "Bukan lagu ini" again); with a remembered id it fetches
+`/api/get/<id>` alone. `view::View` is the state of the current track (candidates, shown id, rejected ids, offset); its `Next` /
+`restart` / `shift` / `add` are pure and tested, and `LyricsState::handle(Cmd, artist, title) -> Effects` is the pure core of the
+buttons (`media.lyrics_next`, `lyrics_earlier`, `lyrics_later`, `lyrics_web:<site>`), which the thin `on_action` runs. The shown
+lyrics are `Lyrics::shifted(offset)` of the entry, so line scheduling, `current`/`around` and the karaoke word spans all follow the
+offset, and `line_id` includes the entry and the offset so a sweep restarts when either changes. `choices::Store` is
+`lyrics-choices.json` (read lazily on the first lookup, written with `App::save_later` + `persist::write_atomic`; the key is an
+FNV hash of the normalised artist, title and a 6 s length bucket, the neighbouring bucket is tried too; 500 entries, oldest
+dropped; cleared on `AppEvent::DataCleared`). Tests run offline against answers recorded from LRCLIB in `lyrics/fixtures/` (lyric
+words replaced by "la", ids, names, lengths and line times kept; `fixture_tests.rs`).
+
 **Karaoke line** (`karaoke(KaraokeSpec { id, text, dim, words, anchor, rise })`, `ui/karaoke.rs` + `scene/karaoke.rs`; used by the
 Musik panel's sung line and the lyric pill, setting `media.lyrics_word_highlight`): one line of text whose words light up in time
 with the music. It lays out like `text(..)` and draws nothing into its block (it produces `Live::Karaoke`); the scene draws the line
@@ -685,7 +706,7 @@ release island started without `MOKU_DEBUG=1`.
 * Network: `crate::net::get(url, timeout) -> Result<(status, Vec<u8>), String>`,
   `get_text(url, timeout)`, `encode(s)` (query escaping), and `request(url, &Options, sink)` for
   anything else (POST, headers, a streamed answer, `Cancel`). Blocking — services and workers
-  only. Only the hosts listed in the README ("Network"): Open-Meteo, LRCLIB (at most four requests per track: `get`, then three searches with the title and artist cleaned by `features/lyrics/title.rs`), the Hari ini ones of
+  only. Only the hosts listed in the README ("Network"): Open-Meteo, LRCLIB (at most four requests per track: `get`, then three searches with the title and artist cleaned by `features/lyrics/title.rs`; `/api/get/<id>` alone for a choice the user made; "Bukan lagu ini" may add the searches later, never more than the plan), the Hari ini ones of
   v0.3 (the Google holiday calendar, BMKG, Frankfurter, Open-Meteo air quality), GitHub for updates,
   the user's own calendar addresses and the one base URL of Tanya AI (only while it is on, only
   when asked), each only while its feature is on. Services that need the Hari ini city

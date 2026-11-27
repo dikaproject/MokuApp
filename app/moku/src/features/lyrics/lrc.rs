@@ -225,6 +225,23 @@ impl Lyrics {
     pub fn is_empty(&self) -> bool {
         self.lines.iter().all(|l| l.text.is_empty())
     }
+
+    /// The same lyrics with every time moved by `delta_ms` (positive = later; a line cannot start
+    /// before 0). Word times and the closing stamp move with their line, so the highlight follows.
+    pub fn shifted(&self, delta_ms: i64) -> Lyrics {
+        let at = |t: u64| (t as i64).saturating_add(delta_ms).max(0) as u64;
+        let lines = self
+            .lines
+            .iter()
+            .map(|l| Line {
+                t: at(l.t),
+                text: l.text.clone(),
+                words: l.words.as_ref().map(|w| w.iter().map(|w| Word { t_ms: at(w.t_ms), text: w.text.clone() }).collect()),
+                end_ms: l.end_ms.map(at),
+            })
+            .collect();
+        Lyrics { lines }
+    }
 }
 
 #[cfg(test)]
@@ -257,6 +274,26 @@ mod tests {
         // Colon-separated hundredths and three-digit ms.
         let l = parse("[00:02:50]b\n[00:01.005]a");
         assert_eq!(texts(&l), vec![(1005, "a"), (2500, "b")]);
+    }
+
+    #[test]
+    fn shifting_moves_lines_words_and_ends_and_stops_at_zero() {
+        let l = parse("[00:01.00]early
+[00:10.00]<00:10.00>Hello <00:10.50>world<00:11.00>");
+        let later = l.shifted(500);
+        assert_eq!(texts(&later), vec![(1500, "early"), (10_500, "Hello world")]);
+        assert_eq!(words(&later.lines[1]), vec![(10_500, "Hello"), (11_000, "world")]);
+        assert_eq!(later.lines[1].end_ms, Some(11_500));
+        let sooner = l.shifted(-5000);
+        assert_eq!(texts(&sooner), vec![(0, "early"), (5000, "Hello world")], "never before 0");
+        assert_eq!(l.shifted(0), l);
+        assert_eq!(later.shifted(-500), l);
+        assert_eq!(later.line_at(10_400), Some(0), "the line has not started yet");
+        assert_eq!(later.line_at(10_500), Some(1));
+        // Lyrics shifted by the user come on top of the file's own [offset].
+        let o = parse("[offset:+500]
+[00:10.00]a");
+        assert_eq!(texts(&o.shifted(500)), vec![(10_000, "a")]);
     }
 
     #[test]

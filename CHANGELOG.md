@@ -4,6 +4,34 @@ All notable changes to Moku. The format follows [Keep a Changelog](https://keepa
 and versions follow [Semantic Versioning](https://semver.org/). The release workflow publishes
 the section of the tagged version as the GitHub release notes.
 
+## [0.3.4] - 2026-11-27
+
+Lyrics of the wrong song are fixed, and you can correct a match yourself. This release is not
+code-signed yet.
+
+### Fixed
+
+- **Lyrics of the wrong song.** A lyric is now shown by itself only when it is certainly the right song, and
+  otherwise the panel says "Lirik tidak tersedia" (better none than wrong). The artist has to match in every
+  kind of request (before, a title-only search accepted another artist's song when the length happened to
+  fit), the title has to be the title (equal after ignoring case, accents and punctuation like the comma of
+  "because,", or equal without a bracket part; "Because Because Because" is not "because"), and the length
+  has to be within 3 s (5 s when artist and title are exact). Among the many duplicate entries LRCLIB has for a
+  song, junk entries (a 3 s entry with a whole song of lyrics) are ignored and the pick is the same every time:
+  synced, exact length, has an album, lowest id.
+
+### Added
+
+- **Musik: which lyrics these are, and how to correct them.** A caption under the lyrics says "Lirik: Artist –
+  Title" as LRCLIB has it ("(pilihanmu)" when you chose it). **"Bukan lagu ini"** moves to the next candidate (a
+  looser list: the same artist or the same title, within 10 s), then "Lirik tidak tersedia" and "Coba lagi dari
+  awal". **−0,5 s / +0,5 s** shift the lyrics for this song by up to 5 s; the lines, the scheduling and the
+  word-by-word highlight follow. **Genius / Musixmatch** open a search page in your own browser (Moku fetches
+  nothing from them).
+- What you chose is remembered per song, on this PC only (`lyrics-choices.json`, at most 500 songs, deleted by
+  "Hapus semua data"); the same song from another player finds it too. A remembered entry is fetched by its id
+  (`GET /api/get/<id>`, the same LRCLIB host) instead of searching.
+
 ## [0.3.3] - 2026-11-26
 
 A calmer settings app (one accent colour), updating from Settings -> Tentang, and word-by-word lyrics.

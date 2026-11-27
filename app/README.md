@@ -80,7 +80,7 @@ The panel's tabs, in order:
 
 | Tab | What it does |
 |---|---|
-| Musik | Current media session (any player that uses Windows media controls): art, title, timeline, play/pause/next/prev, synced lyrics from LRCLIB (the sung line lights up **word by word**, like karaoke, drawn by the compositor so it costs no CPU; the timing is estimated when the lyrics have no word data, and used as is when they do; Settings → Fitur → "Sorot lirik per kata"; it is a plain bright line when animations are reduced or off), live bars in the pill. Volume pill on volume changes. |
+| Musik | Current media session (any player that uses Windows media controls): art, title, timeline, play/pause/next/prev, synced lyrics from LRCLIB (the sung line lights up **word by word**, like karaoke, drawn by the compositor so it costs no CPU; the timing is estimated when the lyrics have no word data, and used as is when they do; Settings → Fitur → "Sorot lirik per kata"; it is a plain bright line when animations are reduced or off), live bars in the pill. Volume pill on volume changes. Under the lyrics a caption says **which LRCLIB entry** they are ("Lirik: Artist – Title"; "(pilihanmu)" when it is your choice), and a quiet row of buttons corrects a wrong one: **"Bukan lagu ini"** moves to the next candidate (then "Lirik tidak tersedia" and "Coba lagi dari awal"), **−0,5 s / +0,5 s** shift the lyrics for this song (±5 s, on top of the file's own offset; the word highlight follows), and **Genius / Musixmatch** open a search page in your own browser (Moku fetches nothing from those sites). A lyric is only shown by itself when it is certainly the right song: the same artist, the same title (not a longer one that contains it) and, when the player reports a length, a length within 3 s (5 s when artist and title are exact); otherwise "Lirik tidak tersedia" (better none than wrong). What you chose is remembered per song, on this PC only (`lyrics-choices.json`). |
 | Hari ini | Date and week strip, today's agenda from your iCal (`.ics`) calendars (Google "secret address", Outlook "publish", any `.ics`; repeating events, time zones and Meet / Zoom / Teams "Gabung" buttons), a local to-do list you add to, edit and delete in the panel (with a due time that raises a reminder: see "To-do with a time"), Indonesian public holidays and cuti bersama (with a "Besok libur" pill the evening before), weather from Open-Meteo for the configured city, rain heads-up, small chips for an exchange rate and the air quality, and the latest BMKG earthquake and weather warnings (credit "Sumber: BMKG"). |
 | Sehat | Drink-water and eye-break reminders, prayer times (Kemenag RI or Malaysia JAKIM angles), the Hijri date (also in the Hari ini header; Kemenag's published month starts from 1 Muharram 1447 to 1 Muharram 1449 H, embedded as data with their sources in `features/hijri.rs`, the tabular calendar outside that range, and a -2..+2 day correction on top for regional differences), and the Ramadan pack: imsak and buka puasa countdown ring in the island (prominent in the last 30 minutes), "Selamat berbuka" at Maghrib, opt-in puasa sunnah reminders (Senin-Kamis, Ayyamul Bidh, Arafah, Tasu'a and Asyura) and an optional adzan sound at prayer time (a generated chime or your own file; your media is paused first and only what Moku paused is resumed; no recording ships with Moku). Off by default. |
 | Kontrol | Six tiles, three and three: Wi-Fi, Bluetooth (names a connected headset and its battery, tinted when on or connected), Jangan ganggu, Mode gelap, Tetap menyala, Mode rapat; volume and brightness sliders, output device, and the per-app volume mixer (chip "Mixer per aplikasi": a slider and a mute button for every app that is playing sound). |
@@ -439,6 +439,9 @@ sheet and shows the island for as long as it is open.
   - `holiday-eve.txt` (the holiday the "Besok libur" pill was last shown for), `bmkg-seen.json` (the
     earthquake times and warning ids already shown, so a restart does not repeat them).
   - `ai-memory.bin` (the Tanya AI memory, encrypted) and `ai-memory.lock` (its write lock).
+  - `lyrics-choices.json` (what you chose for a song's lyrics: which LRCLIB entry, which ones you rejected, the timing
+    offset; keyed by a hash of the normalised artist and title plus the length, so nothing in it is readable as a title;
+    at most 500 songs, the oldest dropped).
   - `phone-debug.txt` (only in a `MOKU_DEBUG=1` run: the address of the open phone-transfer session, for
     `tools\phone-test-client.ps1`; received files go to `Downloads\Moku`, never here).
   - Folders: `clipboard\` (history and images), `shelf\` (the index), `logs\moku.log` (rotated at 1 MB).
@@ -458,7 +461,9 @@ sheet and shows the island for as long as it is open.
   No telemetry.
 - Network: Open-Meteo (weather, geocoding) and LRCLIB (lyrics: the same artist, title, album and
   length, at most four small requests per song, the later ones only when an earlier one found
-  nothing, with tags like "(Official Video)" or "- Topic" removed from the title and artist), only
+  nothing, with tags like "(Official Video)" or "- Topic" removed from the title and artist; a song whose lyrics you
+  chose earlier is fetched by its id instead, `GET https://lrclib.net/api/get/<id>`, the same host and only for that
+  remembered choice), only
   while those features are on, and GitHub for updates: at most once a day
   `GET https://api.github.com/repos/<repo>/releases/latest` (a manual "Periksa sekarang" is that
   same one request, made when you press it), plus the installer download from

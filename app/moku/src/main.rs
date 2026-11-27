@@ -156,7 +156,9 @@ fn run() -> Result<()> {
             // `--state lyrics|lyrics-panel`: a fake player with timed lyrics (`MOKU_DEMO_POS_MS` = where it starts).
             if matches!(args.state.as_deref(), Some("lyrics") | Some("lyrics-panel")) {
                 let start = std::env::var("MOKU_DEMO_POS_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(1_000);
-                features::media::demo_lyrics(a, start);
+                // `MOKU_DEMO_LYRICS` = auto | chosen | none: how the caption and buttons look.
+                let mode = features::lyrics::DemoMode::of(&std::env::var("MOKU_DEMO_LYRICS").unwrap_or_default());
+                features::media::demo_lyrics(a, start, mode);
             }
             if let Some(t) = args.tab.as_deref() {
                 a.open_panel(Some(t));

@@ -146,6 +146,8 @@ fn on_action(app: &mut App, ev: &ActionEvent) {
                 seek(app, ms);
             }
         }
+        // The buttons under the lyrics: "Bukan lagu ini", the timing offset, the web search.
+        (n, ActionKind::Click) if n.starts_with("lyrics_") => lyrics::on_action(app, n, ev.arg()),
         ("lyrics", ActionKind::Click) => {
             let s = app.state_mut::<MediaState>();
             s.show_lyrics = !s.show_lyrics;
@@ -300,6 +302,74 @@ fn lyric_block(app: &App, pos: u64) -> Node {
     body.pad4(0.0, 6.0, 0.0, 2.0)
 }
 
+/// `s` cut to `max` characters with an ellipsis.
+fn clip(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    let mut out: String = s.chars().take(max.saturating_sub(1)).collect();
+    out = out.trim_end().to_string();
+    out.push('\u{2026}');
+    out
+}
+
+/// A quiet text button of the row under the lyrics: tertiary text, the accent only while it is "on".
+fn quiet(label: &str, action: &str, on: Option<Rgba>) -> Node {
+    let t = text(label.to_string()).font_size(typo::CAPTION);
+    let t = match on {
+        Some(c) => t.color(c),
+        None => t.tertiary(),
+    };
+    row([t]).h(26.0).pad4(0.0, 0.0, 10.0, 0.0).action(action.to_string())
+}
+
+/// Two quiet rows under the lyric block, there while lyrics are on and the track has a title (the
+/// rows keep their height whatever they say, so the panel does not jump): which LRCLIB entry the
+/// lyrics are ("Lirik: Artist – Title (pilihanmu)"), and the buttons to correct them: timing, "Bukan
+/// lagu ini", and a web search the user's own browser opens.
+fn lyric_footer(app: &App) -> Option<Node> {
+    let st = app.state::<MediaState>();
+    let has_title = st.m.track.as_ref().is_some_and(|t| !t.title.is_empty());
+    if !has_title || !st.show_lyrics || !app.config().media.lyrics {
+        return None;
+    }
+    let f = app.state::<lyrics::LyricsState>().footer(has_title);
+    let accent = app.accent();
+    // The caption: LRCLIB's own name for the entry, cut to what fits.
+    let room = 70usize.saturating_sub(7 + if f.user { 12 } else { 0 } + if f.offset_ms != 0 { 11 } else { 0 });
+    let mut cap = row([caption(match &f.caption {
+        Some(c) => format!("{}{}", tr("Lirik: ", "Lyrics: "), clip(c, room)),
+        None => " ".to_string(),
+    })]);
+    if f.caption.is_some() && f.user {
+        cap = cap.child(caption(tr(" (pilihanmu)", " (your pick)")));
+    }
+    if f.caption.is_some() && f.offset_ms != 0 {
+        cap = cap.child(text(format!("  \u{b7}  {}", lyrics::choices::fmt_offset(f.offset_ms))).font_size(typo::CAPTION).color(accent));
+    }
+    let mut keys: Vec<Node> = Vec::new();
+    if f.can_shift {
+        keys.push(quiet(tr("\u{2212}0,5 s", "\u{2212}0.5 s"), "media.lyrics_earlier", None));
+        keys.push(quiet(tr("+0,5 s", "+0.5 s"), "media.lyrics_later", None));
+    }
+    let next = match f.button {
+        lyrics::view::Button::WrongSong => Some(tr("Bukan lagu ini", "Wrong song")),
+        lyrics::view::Button::TryOther => Some(tr("Coba kecocokan lain", "Try another match")),
+        lyrics::view::Button::Restart => Some(tr("Coba lagi dari awal", "Start over")),
+        lyrics::view::Button::None => None,
+    };
+    if let Some(l) = next {
+        keys.push(quiet(l, "media.lyrics_next", None));
+    }
+    keys.push(spacer());
+    if f.web {
+        keys.push(row([icon(icons::SEARCH).font_size(12.0).color(color::TEXT3)]).h(26.0).pad4(0.0, 0.0, 5.0, 0.0));
+        keys.push(quiet("Genius", "media.lyrics_web:genius", None));
+        keys.push(quiet("Musixmatch", "media.lyrics_web:musixmatch", None));
+    }
+    Some(col([cap.fill_w().h(16.0), row(keys).fill_w().h(26.0)]).fill_w().pad4(0.0, 0.0, 0.0, 2.0))
+}
+
 fn panel(app: &App) -> Node {
     let st = app.state::<MediaState>();
     let m = &st.m;
@@ -352,7 +422,10 @@ fn panel(app: &App) -> Node {
     .gap(18.0)
     .fill_w();
 
-    let right = col([head, lyric_block(app, pos), times, controls]).gap(6.0).grow(1.0);
+    let mut right = vec![head, lyric_block(app, pos)];
+    right.extend(lyric_footer(app));
+    right.extend([times, controls]);
+    let right = col(right).gap(6.0).grow(1.0);
     col([row([art_node(app, 156.0, 28.0), right]).gap(16.0).align(Align::Start).fill_w()])
 }
 
@@ -382,7 +455,7 @@ fn sample(app: &mut App) {
     apply(app, Update::Art { key: key.clone(), art: Some(sample_art()) });
     apply(app, Update::Playback { playing: true, controls: model::Controls { prev: true, next: true, play_pause: true, seek: true } });
     apply(app, Update::Timeline(model::Timeline { pos_ms: 84_500, dur_ms: 227_000, at: Some(Instant::now()), rate: 0.0 }));
-    lyrics::inject_sample(app, key, SAMPLE_LRC);
+    lyrics::inject_sample(app, key, SAMPLE_LRC, lyrics::DemoMode::Auto);
 }
 
 /// Lyrics for `--state lyrics|lyrics-panel`: lines with known times, so the word highlight can be
@@ -405,7 +478,7 @@ const DEMO_LRC: &str = "[00:00.00]
 
 /// `--state lyrics` / `lyrics-panel`: a fake player at `start_ms` (playing) with [`DEMO_LRC`]. The
 /// fixed modes run no media service, so nothing replaces it. Not used in normal runs.
-pub fn demo_lyrics(app: &mut App, start_ms: u64) {
+pub fn demo_lyrics(app: &mut App, start_ms: u64, mode: lyrics::DemoMode) {
     let track = model::Track { title: "Midnight Drive".into(), artist: "Kaia".into(), album: "Neon Atlas".into() };
     let key = track.key();
     apply(app, Update::Session { app: "Moku".into() });
@@ -413,7 +486,7 @@ pub fn demo_lyrics(app: &mut App, start_ms: u64) {
     apply(app, Update::Art { key: key.clone(), art: Some(sample_art()) });
     apply(app, Update::Playback { playing: true, controls: model::Controls { prev: true, next: true, play_pause: true, seek: true } });
     apply(app, Update::Timeline(model::Timeline { pos_ms: start_ms, dur_ms: 227_000, at: Some(Instant::now()), rate: 0.0 }));
-    lyrics::inject_sample(app, key, DEMO_LRC);
+    lyrics::inject_sample(app, key, DEMO_LRC, mode);
 }
 
 #[cfg(test)]

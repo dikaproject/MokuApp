@@ -1,22 +1,23 @@
 //! LRCLIB client: `GET /api/get` (exact match), then up to three `/api/search` requests with the
 //! title and artist cleaned of upload noise ([`title`]): title + artist, title alone, free text.
 //! At most [`MAX_REQUESTS`] per track, always to the same host with the same data (artist,
-//! title, album, length). The fetch is blocking (lyrics service thread only); everything but
-//! the network call is pure and tested.
+//! title, album, length); a choice the user made earlier is fetched by id instead
+//! (`/api/get/<id>`, same host). Every hit is judged by [`pick`]: the right artist, the right title
+//! and the right length, or it is not shown. The fetch is blocking (lyrics service thread only);
+//! everything but the network call is pure and tested offline (`fixtures/`).
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::Value;
 
-use super::lrc::{self, Lyrics};
+use super::lrc::Lyrics;
+use super::pick::{self, Candidate, Hit, Want};
 use super::title;
 use crate::net;
 
 const BASE: &str = "https://lrclib.net/api";
 const TIMEOUT: Duration = Duration::from_secs(10);
-/// A search hit must be within this many seconds of the track (when the duration is known).
-const DUR_TOLERANCE_S: f64 = 3.0;
 
 /// Outcome for one track.
 #[derive(Clone, Debug, PartialEq)]
@@ -66,70 +67,9 @@ pub fn search_q_url(q: &str) -> String {
     format!("{BASE}/search?q={}", net::encode(q))
 }
 
-fn synced(v: &Value) -> Option<Found> {
-    if v.get("instrumental").and_then(Value::as_bool) == Some(true) {
-        return Some(Found::Instrumental);
-    }
-    let text = v.get("syncedLyrics").and_then(Value::as_str)?;
-    let l = lrc::parse(text);
-    if l.is_empty() { None } else { Some(Found::Synced(Arc::new(l))) }
-}
-
-/// Result of `/api/get` (an object): `Some` if it has synced lyrics or is instrumental.
-pub fn from_get(v: &Value) -> Option<Found> {
-    synced(v)
-}
-
-/// What a search result has to be like.
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct Want {
-    /// Seconds (0 = unknown).
-    pub duration_s: u64,
-    /// The bare title and the first artist, cleaned ([`title::clean`]); empty = unknown.
-    pub title: String,
-    pub artist: String,
-    /// The search was by title only / free text: its hits must be the right song by name (and by
-    /// artist when the length cannot tell).
-    pub loose: bool,
-}
-
-/// Best hit of `/api/search` (an array): synced lyrics with the closest duration.
-pub fn pick_search(v: &Value, duration_s: u64) -> Option<Found> {
-    pick_best(v, &Want { duration_s, ..Want::default() })
-}
-
-/// Best hit of `/api/search` for `want`: within ±[`DUR_TOLERANCE_S`] of the duration (when both
-/// are known), the closest wins; the right artist and title break ties.
-pub fn pick_best(v: &Value, want: &Want) -> Option<Found> {
-    let items = v.as_array()?;
-    let mut best: Option<(f64, Found)> = None;
-    for it in items {
-        let Some(found) = synced(it) else { continue };
-        let d = it.get("duration").and_then(Value::as_f64).unwrap_or(0.0);
-        let known = want.duration_s > 0 && d > 0.0;
-        let diff = if known { (d - want.duration_s as f64).abs() } else { 0.0 };
-        if known && diff > DUR_TOLERANCE_S {
-            continue;
-        }
-        let name = it.get("trackName").and_then(Value::as_str).unwrap_or("");
-        let by = it.get("artistName").and_then(Value::as_str).unwrap_or("");
-        // The title is the title: the hit's bare title is the one asked for (or contains it).
-        let title_ok = want.title.is_empty() || name.is_empty() || title::similar(&title::clean_title(name), &want.title);
-        let artist_ok = want.artist.is_empty() || by.is_empty() || title::similar(by, &want.artist);
-        if want.loose && !title_ok {
-            continue;
-        }
-        // Without a length to go by, a loose search must at least be by the right artist.
-        if want.loose && !known && !artist_ok {
-            continue;
-        }
-        // Prefer synced over instrumental on ties.
-        let score = diff + if found == Found::Instrumental { 0.5 } else { 0.0 } + if title_ok { 0.0 } else { 3.0 } + if artist_ok { 0.0 } else { 1.5 };
-        if best.as_ref().is_none_or(|(s, _)| score < *s) {
-            best = Some((score, found));
-        }
-    }
-    best.map(|(_, f)| f)
+/// `/api/get/<id>`: one entry by its LRCLIB id (a choice the user made earlier).
+pub fn get_id_url(id: u64) -> String {
+    format!("{BASE}/get/{id}")
 }
 
 /// One request of a lookup.
@@ -137,8 +77,8 @@ pub fn pick_best(v: &Value, want: &Want) -> Option<Found> {
 pub enum Step {
     /// `/api/get`: the exact track (needs album and length).
     Get(String),
-    /// `/api/search`; `loose`: by title only / free text.
-    Search { url: String, loose: bool },
+    /// `/api/search`.
+    Search { url: String },
 }
 
 /// The most requests one track may cost.
@@ -155,9 +95,9 @@ pub fn plan(q: &Query) -> Vec<Step> {
         steps.push(Step::Get(get_url(q)));
     }
     let free = if artist.is_empty() { c.core.clone() } else { format!("{artist} {}", c.core) };
-    for (url, loose) in [(search_url(&c.title, &artist), false), (search_title_url(&c.core), true), (search_q_url(&free), true)] {
-        if !c.core.is_empty() && !steps.iter().any(|s| matches!(s, Step::Search { url: u, .. } if *u == url)) {
-            steps.push(Step::Search { url, loose });
+    for url in [search_url(&c.title, &artist), search_title_url(&c.core), search_q_url(&free)] {
+        if !c.core.is_empty() && !steps.iter().any(|s| matches!(s, Step::Search { url: u } if *u == url)) {
+            steps.push(Step::Search { url });
         }
     }
     steps.truncate(MAX_REQUESTS);
@@ -173,55 +113,104 @@ fn fetch_json(url: &str) -> Result<Option<Value>, String> {
     }
 }
 
-/// Look the track up. `Err` = network trouble (don't cache; try again next time).
-pub fn fetch(q: &Query) -> Result<Found, String> {
-    let c = title::clean(&q.title, &q.artist);
-    let want = Want { duration_s: q.duration_s, title: c.core.clone(), artist: title::first_artist(&c.artist), loose: false };
+/// What one lookup found.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Lookup {
+    /// The entries that fit the track, best first (strict ones before the loose ones, see [`pick`]).
+    pub cands: Vec<Candidate>,
+    /// The searches were made: there are no more entries to be had by asking again.
+    pub searched: bool,
+}
+
+/// Hits of one answer: an array of entries (`/api/search`) or one entry (`/api/get`).
+fn hits_of(v: &Value) -> Vec<Hit> {
+    match v {
+        Value::Array(items) => items.iter().filter_map(pick::hit_of).collect(),
+        one => pick::hit_of(one).into_iter().collect(),
+    }
+}
+
+fn add(all: &mut Vec<Hit>, new: Vec<Hit>) {
+    for h in new {
+        if !all.iter().any(|x| x.id == h.id && h.id != 0) {
+            all.push(h);
+        }
+    }
+}
+
+fn ranked(hits: &[Hit], want: &Want, rejected: &[u64]) -> Vec<Candidate> {
+    let mut c = pick::rank(hits, want);
+    c.retain(|x| !rejected.contains(&x.id()));
+    c
+}
+
+/// One request: the answer's JSON, `Ok(None)` for a 404.
+pub type Getter<'a> = &'a mut dyn FnMut(&str) -> Result<Option<Value>, String>;
+
+/// Look the track up with `get` doing the requests. With a `remembered` id, that entry is fetched
+/// alone (`searched` stays false: nothing else was looked at); when it is gone, or there is no id,
+/// the plan is followed until a **strict** candidate (see [`pick`]) turns up, and the entries in
+/// `rejected` are left out.
+pub fn lookup(q: &Query, remembered: Option<u64>, rejected: &[u64], get: Getter) -> Result<Lookup, String> {
+    if let Some(id) = remembered {
+        if let Some(h) = get(&get_id_url(id))?.as_ref().and_then(pick::hit_of) {
+            return Ok(Lookup { cands: vec![Candidate::chosen(Hit { id, ..h })], searched: false });
+        }
+    }
+    let want = Want::new(&q.title, &q.artist, q.duration_s);
+    let mut hits: Vec<Hit> = Vec::new();
     for step in plan(q) {
-        match step {
-            Step::Get(url) => {
-                if let Some(f) = fetch_json(&url)?.as_ref().and_then(from_get) {
-                    return Ok(f);
-                }
-            }
-            Step::Search { url, loose } => {
-                if let Some(f) = fetch_json(&url)?.and_then(|v| pick_best(&v, &Want { loose, ..want.clone() })) {
-                    return Ok(f);
-                }
+        let (url, by_get) = match &step {
+            Step::Get(u) => (u, true),
+            Step::Search { url } => (url, false),
+        };
+        if let Some(v) = get(url)? {
+            add(&mut hits, hits_of(&v));
+        }
+        let cands = ranked(&hits, &want, rejected);
+        if cands.iter().any(|c| c.strict) {
+            // An exact `get` hit leaves the searches undone: they only run if the user wants another.
+            return Ok(Lookup { cands, searched: !by_get });
+        }
+    }
+    Ok(Lookup { cands: ranked(&hits, &want, rejected), searched: true })
+}
+
+/// Every search of the plan (no early stop, no `get`): the entries for "Bukan lagu ini" once the
+/// first lookup had nothing more to offer.
+pub fn alternatives(q: &Query, rejected: &[u64], get: Getter) -> Result<Vec<Candidate>, String> {
+    let want = Want::new(&q.title, &q.artist, q.duration_s);
+    let mut hits: Vec<Hit> = Vec::new();
+    for step in plan(q) {
+        if let Step::Search { url } = step {
+            if let Some(v) = get(&url)? {
+                add(&mut hits, hits_of(&v));
             }
         }
     }
-    Ok(Found::Missing)
+    Ok(ranked(&hits, &want, rejected))
+}
+
+/// [`lookup`] over the network. `Err` = network trouble (don't cache; try again next time).
+pub fn fetch(q: &Query, remembered: Option<u64>, rejected: &[u64]) -> Result<Lookup, String> {
+    lookup(q, remembered, rejected, &mut fetch_json)
+}
+
+/// [`alternatives`] over the network.
+pub fn fetch_alternatives(q: &Query, rejected: &[u64]) -> Result<Vec<Candidate>, String> {
+    alternatives(q, rejected, &mut fetch_json)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn lrclib_get_json() {
-        let v: Value = serde_json::from_str(r#"{"id":1,"trackName":"x","duration":227,"instrumental":false,"plainLyrics":"a","syncedLyrics":"[00:01.00]a\n[00:02.00]b"}"#).unwrap();
-        let Some(Found::Synced(l)) = from_get(&v) else { panic!() };
-        assert_eq!(l.lines.len(), 2);
-        let v: Value = serde_json::from_str(r#"{"instrumental":true,"syncedLyrics":null}"#).unwrap();
-        assert_eq!(from_get(&v), Some(Found::Instrumental));
-        let v: Value = serde_json::from_str(r#"{"instrumental":false,"plainLyrics":"only plain","syncedLyrics":null}"#).unwrap();
-        assert_eq!(from_get(&v), None);
+    fn q(title: &str, artist: &str, album: &str, dur: u64) -> Query {
+        Query { key: String::new(), title: title.into(), artist: artist.into(), album: album.into(), duration_s: dur }
     }
 
-    #[test]
-    fn lrclib_search_picks_closest_duration() {
-        let v: Value = serde_json::from_str(
-            r#"[{"duration":300,"syncedLyrics":"[00:01.00]far"},
-                {"duration":226.5,"syncedLyrics":"[00:01.00]close"},
-                {"duration":227,"syncedLyrics":null,"plainLyrics":"plain"},
-                {"duration":229,"syncedLyrics":"[00:01.00]ok"}]"#,
-        )
-        .unwrap();
-        let Some(Found::Synced(l)) = pick_search(&v, 227) else { panic!() };
-        assert_eq!(l.lines[0].text, "close");
-        assert_eq!(pick_search(&v, 100), None, "nothing within tolerance");
-        assert!(pick_search(&serde_json::json!([]), 0).is_none());
+    fn urls(steps: &[Step]) -> Vec<String> {
+        steps.iter().map(|s| match s { Step::Get(u) | Step::Search { url: u } => u.clone() }).collect()
     }
 
     #[test]
@@ -237,14 +226,6 @@ mod tests {
         assert_eq!(search_q_url("A Song"), "https://lrclib.net/api/search?q=A%20Song");
     }
 
-    fn q(title: &str, artist: &str, album: &str, dur: u64) -> Query {
-        Query { key: String::new(), title: title.into(), artist: artist.into(), album: album.into(), duration_s: dur }
-    }
-
-    fn urls(steps: &[Step]) -> Vec<String> {
-        steps.iter().map(|s| match s { Step::Get(u) | Step::Search { url: u, .. } => u.clone() }).collect()
-    }
-
     #[test]
     fn plan_tries_get_then_cleaned_title_and_artist_then_title_then_free_text() {
         let steps = plan(&q("Blinding Lights (Official Music Video)", "The Weeknd - Topic", "After Hours", 200));
@@ -258,8 +239,7 @@ mod tests {
                 "https://lrclib.net/api/search?q=The%20Weeknd%20Blinding%20Lights",
             ]
         );
-        assert!(matches!(&steps[1], Step::Search { loose: false, .. }));
-        assert!(matches!(&steps[2], Step::Search { loose: true, .. }) && matches!(&steps[3], Step::Search { loose: true, .. }));
+        assert!(steps[1..].iter().all(|s| matches!(s, Step::Search { .. })));
     }
 
     #[test]
@@ -296,47 +276,76 @@ mod tests {
     }
 
     #[test]
-    fn search_hits_must_be_the_right_song_when_the_search_is_loose() {
-        let v: Value = serde_json::from_str(
-            r#"[{"trackName":"Home","artistName":"Someone Else","duration":200,"syncedLyrics":"[00:01.00]wrong"},
-                {"trackName":"Home (Live)","artistName":"Edward Sharpe","duration":201,"syncedLyrics":"[00:01.00]live"},
-                {"trackName":"Different Song","artistName":"Edward Sharpe","duration":200,"syncedLyrics":"[00:01.00]other"}]"#,
-        )
-        .unwrap();
-        let loose = Want { duration_s: 200, title: "Home".into(), artist: "Edward Sharpe".into(), loose: true };
-        // The right artist beats a hit that is only the same title; a different title never wins.
-        let Some(Found::Synced(l)) = pick_best(&v, &loose) else { panic!() };
-        assert_eq!(l.lines[0].text, "live");
-        // Without a length, a loose search accepts only the right artist.
-        let no_len = Want { duration_s: 0, ..loose.clone() };
-        let Some(Found::Synced(l)) = pick_best(&v, &no_len) else { panic!() };
-        assert_eq!(l.lines[0].text, "live");
-        let stranger = Want { artist: "Nobody".into(), ..no_len };
-        assert_eq!(pick_best(&v, &stranger), None);
-        // With a length, the artist may be wrong (a channel name): the title and length decide.
-        let channel = Want { artist: "Random Channel".into(), ..loose };
-        assert!(pick_best(&v, &channel).is_some());
+    fn the_id_url_stays_on_the_same_host() {
+        assert_eq!(get_id_url(25993377), "https://lrclib.net/api/get/25993377");
     }
 
     #[test]
-    fn closest_duration_within_three_seconds_wins() {
-        let v: Value = serde_json::from_str(
-            r#"[{"trackName":"S","artistName":"A","duration":232,"syncedLyrics":"[00:01.00]far"},
-                {"trackName":"S","artistName":"A","duration":229.6,"syncedLyrics":"[00:01.00]near"},
-                {"trackName":"S","artistName":"A","duration":227.2,"syncedLyrics":"[00:01.00]best"},
-                {"trackName":"S","artistName":"A","duration":226.9,"syncedLyrics":null}]"#,
-        )
+    fn a_remembered_choice_is_fetched_by_id_alone() {
+        let one = serde_json::json!({"id": 5, "trackName": "Whatever", "artistName": "Anyone", "duration": 10, "syncedLyrics": "[00:01.00]a"});
+        let mut asked: Vec<String> = vec![];
+        let r = lookup(&q("Song", "Artist", "", 200), Some(5), &[], &mut |u| {
+            asked.push(u.to_string());
+            Ok(Some(one.clone()))
+        })
         .unwrap();
-        let w = Want { duration_s: 227, title: "S".into(), artist: "A".into(), loose: false };
-        let Some(Found::Synced(l)) = pick_best(&v, &w) else { panic!() };
-        assert_eq!(l.lines[0].text, "best");
-        // 3 s is the limit: 230 s is out for a 226 s track, 229 is in.
-        let w = Want { duration_s: 226, ..w };
-        assert!(matches!(pick_best(&v, &w), Some(Found::Synced(l)) if l.lines[0].text == "best"));
-        let w = Want { duration_s: 224, ..w };
-        assert_eq!(pick_best(&v, &w), None, "nothing within 3 s of 224");
-        // Instrumental ties lose to synced lyrics of the same length.
-        let v: Value = serde_json::from_str(r#"[{"duration":200,"instrumental":true},{"duration":200,"syncedLyrics":"[00:01.00]sung"}]"#).unwrap();
-        assert!(matches!(pick_search(&v, 200), Some(Found::Synced(_))));
+        assert_eq!(asked, ["https://lrclib.net/api/get/5"]);
+        assert_eq!((r.cands.len(), r.searched, r.cands[0].id()), (1, false, 5), "taken as it is: the user chose it, whatever its name");
+        // Gone from LRCLIB: the normal lookup runs instead.
+        let mut asked: Vec<String> = vec![];
+        let r = lookup(&q("Song", "Artist", "", 200), Some(5), &[], &mut |u| {
+            asked.push(u.to_string());
+            Ok(None)
+        })
+        .unwrap();
+        assert!(asked[0].ends_with("/get/5") && asked.len() > 1 && asked[1..].iter().all(|u| u.contains("/search?")));
+        assert!(r.cands.is_empty() && r.searched);
+        // Network trouble is an error, not "no lyrics".
+        assert!(lookup(&q("Song", "Artist", "", 200), None, &[], &mut |_| Err("timeout".into())).is_err());
+    }
+
+    #[test]
+    fn the_searches_stop_at_the_first_strict_candidate_and_skip_rejected_ones() {
+        let hit = |id: u64, artist: &str| serde_json::json!({"id": id, "trackName": "Song", "artistName": artist, "albumName": "x", "duration": 200, "syncedLyrics": format!("[00:01.00]#{id}")});
+        let mut n = 0;
+        let r = lookup(&q("Song", "Artist", "", 200), None, &[], &mut |_| {
+            n += 1;
+            Ok(Some(serde_json::json!([hit(1, "Someone Else"), hit(2, "Artist")])))
+        })
+        .unwrap();
+        assert_eq!(n, 1, "the first search had a strict hit");
+        assert_eq!(r.cands.iter().map(|c| (c.id(), c.strict)).collect::<Vec<_>>(), [(2, true), (1, false)]);
+        assert!(r.searched);
+        // The user rejected 2: nothing strict is left, so every request of the plan runs.
+        let mut n = 0;
+        let r = lookup(&q("Song", "Artist", "", 200), None, &[2], &mut |_| {
+            n += 1;
+            Ok(Some(serde_json::json!([hit(1, "Someone Else"), hit(2, "Artist")])))
+        })
+        .unwrap();
+        assert_eq!(n, plan(&q("Song", "Artist", "", 200)).len());
+        assert_eq!(r.cands.iter().map(|c| c.id()).collect::<Vec<_>>(), [1]);
+    }
+
+    #[test]
+    fn an_exact_get_hit_leaves_the_searches_for_later() {
+        let exact = serde_json::json!({"id": 9, "trackName": "Song", "artistName": "Artist", "albumName": "Alb", "duration": 200, "syncedLyrics": "[00:01.00]a"});
+        let mut asked = 0;
+        let r = lookup(&q("Song", "Artist", "Alb", 200), None, &[], &mut |u| {
+            asked += 1;
+            assert!(u.contains("/get?"), "only the exact request: {u}");
+            Ok(Some(exact.clone()))
+        })
+        .unwrap();
+        assert_eq!((asked, r.searched, r.cands.len()), (1, false, 1));
+        // `alternatives` then runs the searches (never `get`).
+        let mut seen: Vec<String> = vec![];
+        let alt = alternatives(&q("Song", "Artist", "Alb", 200), &[9], &mut |u| {
+            seen.push(u.to_string());
+            Ok(Some(serde_json::json!([exact.clone()])))
+        })
+        .unwrap();
+        assert!(seen.iter().all(|u| u.contains("/search?")) && !seen.is_empty());
+        assert!(alt.is_empty(), "9 was rejected");
     }
 }

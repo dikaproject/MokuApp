@@ -98,6 +98,7 @@ pub const DATA_FILES: &[&str] = &[
     "ai-memory.bin",
     "ai-memory.lock",
     "phone-debug.txt",
+    "lyrics-choices.json",
     DATA_MARKER,
 ];
 

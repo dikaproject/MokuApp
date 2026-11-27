@@ -22,7 +22,7 @@ version is in [`app/README.md`](app/README.md) ("Network" and "Configuration and
 |---|---|---|---|
 | Weather in "Hari ini" (Settings → Fitur; **on by default**) | Open-Meteo: `geocoding-api.open-meteo.com`, `api.open-meteo.com` | about every 30 minutes while on | The city name you set (once per city name, to find its coordinates, unless you saved coordinates in `config.toml`), then those coordinates rounded to 4 decimals. |
 | Air quality chip (Settings → Fitur; off by default) | Open-Meteo: `air-quality-api.open-meteo.com` | hourly while on | The coordinates of your Hari ini city. |
-| Lyrics for the song that is playing (Settings → Fitur → "Musik: lirik berjalan"; **on by default**) | LRCLIB: `lrclib.net` | when a track starts, while lyrics are on | The track's artist, title, album and length (at most four requests per song, the later ones only when the first did not find lyrics; the title and artist may be sent without tags such as "(Official Video)" or "- Topic"). |
+| Lyrics for the song that is playing (Settings → Fitur → "Musik: lirik berjalan"; **on by default**) | LRCLIB: `lrclib.net` | when a track starts, while lyrics are on | The track's artist, title, album and length (at most four requests per song, the later ones only when the first did not find lyrics; the title and artist may be sent without tags such as "(Official Video)" or "- Topic"). When you have chosen another entry for a song, Moku asks LRCLIB for that entry by its number (`/api/get/<id>`) instead of searching. |
 | Update check (Settings → Tentang → "Periksa pembaruan otomatis"; **on by default**) | GitHub: `api.github.com`; the installer comes from `github.com` (redirected to `objects.githubusercontent.com` or `release-assets.githubusercontent.com`) | at most once a day, plus once each time you press "Periksa sekarang" (Settings → Tentang, also while the automatic check is off; the same request); the download only when you press "Perbarui" or "Perbarui sekarang" | A request for the latest release of this repository. Nothing about you. The downloaded installer is run only if its SHA-256 and its signature check out. |
 | Indonesian public holidays (Settings → Fitur; on by default only when Windows is set to Indonesian) | Google's public holiday calendar on `calendar.google.com` | at start and every 12 hours while on | Nothing except the request for that public calendar file. |
 | BMKG earthquake alerts (Settings → Fitur; on by default only when Windows is set to Indonesian) | `data.bmkg.go.id` | every 2 minutes while on | Nothing except the request for the public feeds. |
@@ -74,6 +74,10 @@ and moves nothing before you press "Terima". Details are in [`app/README.md`](ap
   images; password managers and one-time codes are skipped or kept in memory only), the Shelf
   index, a small log (`logs\moku.log`, rotated at 1 MB, with no addresses, headers, typed text or
   AI answers) and a few small state files. `app/README.md` lists every file.
+- **Lyric choices** (`lyrics-choices.json`): which LRCLIB entry you picked for a song, the ones you rejected with
+  "Bukan lagu ini", and the timing offset you set. A song is identified by a hash of its normalised artist and title
+  plus its length, not by name, and the file is never sent anywhere. At most 500 songs are kept; "Hapus semua
+  data" deletes it.
 - **Tanya AI memory** (`ai-memory.bin`): the facts you asked it to remember, and the chat history if
   you turned it on (off by default, 7 or 30 days). It is encrypted with AES-256-GCM, with a random
   key per save wrapped for your Windows account (DPAPI). It is never sent anywhere except as the
@@ -82,6 +86,9 @@ and moves nothing before you press "Terima". Details are in [`app/README.md`](ap
 - **Your files:** screenshots go to `Pictures\Moku`, files received from your phone to
   `Downloads\Moku`.
 - Moku writes nothing next to its program files.
+- **Lyric search links:** the "Genius" and "Musixmatch" buttons under the lyrics open a search page (artist and title in
+  the address) in your own browser, like any link you click. Moku itself contacts neither site and fetches nothing
+  from them.
 
 ## Your choices
 
